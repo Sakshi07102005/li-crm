@@ -1,4 +1,4 @@
-import { pool } from './db/pool';
+import { pool } from '../src/db/pool';
 
 async function main() {
   console.log('=== QUERY 1: users + roles ===');

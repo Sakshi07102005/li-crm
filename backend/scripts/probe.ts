@@ -1,7 +1,7 @@
 import { Server } from 'http';
-import app from './app';
-import { env } from './config/env';
-import { checkDatabaseConnection, pool } from './db/pool';
+import app from '../src/app';
+import { env } from '../src/config/env';
+import { checkDatabaseConnection, pool } from '../src/db/pool';
 
 async function main() {
   console.log('--- Starting server on port ' + env.port + ' ---');

@@ -479,11 +479,79 @@ async function runTests() {
     }
 
     // -------------------------------------------------------------
-    // Test 10: Logout revokes token, refresh afterwards fails, logout twice still 200
+    // Test 10: Logout revokes only that session (401 INVALID_REFRESH_TOKEN, not reuse); session B remains valid
     // -------------------------------------------------------------
     {
-      // Login to get a fresh refresh token
-      const loginRes = await apiFetch(`${baseUrl}/auth/login`, {
+      const logoutEmail = `throwaway-logout-${Date.now()}@example.com`;
+      throwawayEmails.push(logoutEmail);
+
+      // Register throwaway user
+      await apiFetch(`${baseUrl}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: logoutEmail,
+          password: 'Password@123',
+          firstName: 'Logout',
+          lastName: 'Tester',
+        }),
+      });
+
+      // Session A login
+      const loginARes = await apiFetch(`${baseUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: logoutEmail,
+          password: 'Password@123',
+        }),
+      });
+      const loginABody = (await loginARes.json()) as any;
+      const tokenA = loginABody.data?.tokens?.refreshToken;
+
+      // Session B login
+      const loginBRes = await apiFetch(`${baseUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: logoutEmail,
+          password: 'Password@123',
+        }),
+      });
+      const loginBBody = (await loginBRes.json()) as any;
+      const tokenB = loginBBody.data?.tokens?.refreshToken;
+
+      // Logout Session A
+      const logoutARes = await apiFetch(`${baseUrl}/auth/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: tokenA }),
+      });
+
+      // Refresh with Session A -> 401 INVALID_REFRESH_TOKEN (not reuse!)
+      const refreshARes = await apiFetch(`${baseUrl}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: tokenA }),
+      });
+      const refreshABody = (await refreshARes.json()) as any;
+
+      // Refresh with Session B -> 200 (Session B is still valid!)
+      const refreshBRes = await apiFetch(`${baseUrl}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: tokenB }),
+      });
+
+      // Logout Session A again -> 200 (idempotent)
+      const logoutAAgainRes = await apiFetch(`${baseUrl}/auth/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: tokenA }),
+      });
+
+      // Multi-session check on seeded admin: logging in and out of admin session 1 leaves admin session 2 intact
+      const adminLogin1 = await apiFetch(`${baseUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -491,41 +559,56 @@ async function runTests() {
           password: env.seed.adminPassword,
         }),
       });
-      const loginBody = (await loginRes.json()) as any;
-      const logoutToken = loginBody.data?.tokens?.refreshToken;
+      const adminRefresh1 = ((await adminLogin1.json()) as any).data?.tokens?.refreshToken;
 
-      // Logout 1
-      const logout1Res = await apiFetch(`${baseUrl}/auth/logout`, {
+      const adminLogin2 = await apiFetch(`${baseUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken: logoutToken }),
+        body: JSON.stringify({
+          email: env.seed.adminEmail,
+          password: env.seed.adminPassword,
+        }),
+      });
+      const adminRefresh2 = ((await adminLogin2.json()) as any).data?.tokens?.refreshToken;
+
+      // Logout admin session 1
+      const adminLogout1 = await apiFetch(`${baseUrl}/auth/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: adminRefresh1 }),
       });
 
-      // Refresh with revoked token should fail
-      const refreshAttempt = await apiFetch(`${baseUrl}/auth/refresh`, {
+      // Admin session 2 must still refresh cleanly
+      const adminRefresh2Check = await apiFetch(`${baseUrl}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken: logoutToken }),
+        body: JSON.stringify({ refreshToken: adminRefresh2 }),
       });
+      const newAdminRefresh2 = ((await adminRefresh2Check.json()) as any).data?.refreshToken || adminRefresh2;
 
-      // Logout 2 (idempotent)
-      const logout2Res = await apiFetch(`${baseUrl}/auth/logout`, {
+      // Clean up admin session 2
+      await apiFetch(`${baseUrl}/auth/logout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken: logoutToken }),
+        body: JSON.stringify({ refreshToken: newAdminRefresh2 }),
       });
 
       const ok =
-        logout1Res.status === 200 &&
-        refreshAttempt.status === 401 &&
-        logout2Res.status === 200;
+        logoutARes.status === 200 &&
+        refreshARes.status === 401 &&
+        refreshABody.error?.code === 'INVALID_REFRESH_TOKEN' &&
+        refreshBRes.status === 200 &&
+        logoutAAgainRes.status === 200 &&
+        adminLogout1.status === 200 &&
+        adminRefresh2Check.status === 200;
 
       record(
         10,
-        'logout revokes token, refresh afterwards fails, logout twice still 200',
+        'logout A revokes only A (401 INVALID_REFRESH_TOKEN); session B remains valid; admin sessions isolated',
         ok,
-        logout1Res.status,
+        logoutARes.status,
         200,
+        `refreshA_code=${refreshABody.error?.code}, refreshB_status=${refreshBRes.status}`,
       );
     }
 
@@ -756,6 +839,17 @@ async function runTests() {
       );
     }
   } finally {
+    // Query run BEFORE throwaway users are cleaned up showing rotated token row with replaced_by_id IS NOT NULL
+    console.log('\n=== REFRESH TOKENS WITH replaced_by_id IS NOT NULL (Proof of Rotation Chain - Before Cleanup) ===');
+    const rotatedTokensProof = await query(`
+      SELECT id, user_id, revoked_at IS NOT NULL AS revoked, replaced_by_id IS NOT NULL AS has_replacement, replaced_by_id, created_at
+      FROM refresh_tokens
+      WHERE replaced_by_id IS NOT NULL
+      ORDER BY created_at DESC
+      LIMIT 5
+    `);
+    console.table(rotatedTokensProof.rows);
+
     // Clean up only throwaway test users created in this session
     if (throwawayEmails.length > 0) {
       await query('DELETE FROM users WHERE email = ANY($1)', [throwawayEmails]);

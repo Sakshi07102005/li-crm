@@ -297,29 +297,36 @@ export class AuthService {
 
       const tokenRecord = tokenRes.rows[0];
 
-      // 2. Reuse Detection: If already revoked, revoke ALL active tokens for user
+      // 2. Revoked token checks
       if (tokenRecord.revoked_at !== null) {
-        await client.query(
-          `UPDATE refresh_tokens
-           SET revoked_at = NOW()
-           WHERE user_id = $1 AND revoked_at IS NULL`,
-          [tokenRecord.user_id],
-        );
+        if (tokenRecord.replaced_by_id !== null) {
+          // Token was rotated and then re-presented -> REPLAY ATTACK DETECTED
+          await client.query(
+            `UPDATE refresh_tokens
+             SET revoked_at = NOW()
+             WHERE user_id = $1 AND revoked_at IS NULL`,
+            [tokenRecord.user_id],
+          );
 
-        await commitNow();
+          await commitNow();
 
-        await writeAuditLog({
-          userId: tokenRecord.user_id,
-          action: 'auth.token_reuse_detected',
-          entityType: 'refresh_token',
-          entityId: tokenRecord.id,
-          ip,
-          userAgent,
-        });
+          await writeAuditLog({
+            userId: tokenRecord.user_id,
+            action: 'auth.token_reuse_detected',
+            entityType: 'refresh_token',
+            entityId: tokenRecord.id,
+            ip,
+            userAgent,
+          });
 
-        throw AppError.tokenReuseDetected(
-          'Suspicious token reuse detected. All sessions revoked.',
-        );
+          throw AppError.tokenReuseDetected(
+            'Suspicious token reuse detected. All sessions revoked.',
+          );
+        } else {
+          // Token was revoked without replacement (e.g. logout or change-password)
+          // NO mass revocation, NO reuse audit log.
+          throw AppError.invalidRefreshToken('Refresh token has been revoked');
+        }
       }
 
       // 3. Expiration check
