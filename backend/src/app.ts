@@ -1,59 +1,58 @@
-import cors from "cors";
-import express from "express";
-import helmet from "helmet";
-import swaggerUi from "swagger-ui-express";
-import { env } from "./config/env";
-import { swaggerSpec } from "./config/swagger";
-import { errorHandler } from "./middleware/errorHandler";
-import { notFound } from "./middleware/notFound";
-import { requestIdMiddleware, requestLogger } from "./middleware/requestLogger";
-import routes from "./routes";
-import { AppError } from "./utils/AppError";
+import cors from 'cors';
+import express, { Express } from 'express';
+import helmet from 'helmet';
+import { env } from './config/env';
+import { errorHandler } from './middleware/errorHandler';
+import { notFound } from './middleware/notFound';
+import { requestIdMiddleware, requestLogger } from './middleware/requestLogger';
+import { rootRouter } from './routes';
 
-const app = express();
+const app: Express = express();
 
-// Security headers
+// Trust proxy for rate limiting and IP capture behind reverse proxies
+app.set('trust proxy', 1);
+
+// Security Headers
 app.use(
   helmet({
-    contentSecurityPolicy: false, // Allows Swagger UI assets
-  })
+    contentSecurityPolicy: false, // Allows Swagger UI to load its assets inline
+  }),
 );
 
 // CORS configuration
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || env.corsOrigins.includes(origin) || !env.isProduction) {
+      // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+      if (
+        env.corsOrigins.includes('*') ||
+        env.corsOrigins.includes(origin)
+      ) {
         return callback(null, true);
       }
-      callback(new AppError("Origin not allowed by CORS", 403, "CORS_FORBIDDEN"));
+      return callback(new Error(`CORS origin not allowed: ${origin}`));
     },
     credentials: true,
-  })
+  }),
 );
 
-// Request tracking & parsing
+// Body Parsers with 1MB limit
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Request ID and Request Logging
 app.use(requestIdMiddleware);
 app.use(requestLogger);
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
-// Swagger API Documentation
-app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  customSiteTitle: "LI CRM API Docs",
-  customCss: ".swagger-ui .topbar { display: none }",
-}));
+// Mount main API router
+app.use('/api', rootRouter);
 
-app.get("/api/docs.json", (_req, res) => {
-  res.setHeader("Content-Type", "application/json");
-  res.send(swaggerSpec);
-});
-
-// Mount API routes
-app.use("/api", routes);
-
-// 404 & Global Error Handling
+// 404 Handler
 app.use(notFound);
+
+// Global Error Handler
 app.use(errorHandler);
 
+export { app };
 export default app;

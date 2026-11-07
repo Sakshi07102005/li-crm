@@ -1,10 +1,8 @@
-import { ErrorRequestHandler } from "express";
-import { ZodError } from "zod";
-import { env } from "../config/env";
-import { AppError } from "../utils/AppError";
+import { ErrorRequestHandler } from 'express';
+import { ZodError } from 'zod';
+import { AppError } from '../utils/AppError';
 
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
-  // Operational AppError
   if (err instanceof AppError) {
     res.status(err.statusCode).json({
       success: false,
@@ -17,84 +15,81 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     return;
   }
 
-  // Zod validation errors (supports Zod v3 .errors and Zod v4 .issues)
   if (err instanceof ZodError) {
     const rawIssues: any[] = (err as any).issues || (err as any).errors || [];
     const formattedErrors = rawIssues.map((e: any) => ({
-      field: Array.isArray(e.path) ? e.path.join(".") : String(e.path ?? ""),
+      field: Array.isArray(e.path) ? e.path.join('.') : String(e.path ?? ''),
       message: e.message,
     }));
 
     res.status(400).json({
       success: false,
-      message: "Validation error on incoming request",
+      message: 'Validation failed',
       error: {
-        code: "VALIDATION_ERROR",
+        code: 'VALIDATION_ERROR',
         details: formattedErrors,
       },
     });
     return;
   }
 
-  // JWT errors
-  if (err.name === "JsonWebTokenError") {
+  if (err?.name === 'TokenExpiredError') {
     res.status(401).json({
       success: false,
-      message: "Invalid or malformed authentication token",
+      message: 'Authentication token has expired',
       error: {
-        code: "INVALID_TOKEN",
+        code: 'TOKEN_EXPIRED',
         details: null,
       },
     });
     return;
   }
 
-  if (err.name === "TokenExpiredError") {
+  if (err?.name === 'JsonWebTokenError') {
     res.status(401).json({
       success: false,
-      message: "Authentication token has expired. Please refresh your token.",
+      message: 'Invalid authentication token',
       error: {
-        code: "TOKEN_EXPIRED",
+        code: 'INVALID_TOKEN',
         details: null,
       },
     });
     return;
   }
 
-  // Malformed JSON body
-  if (err instanceof SyntaxError && "body" in err) {
+  if (err instanceof SyntaxError && 'body' in err) {
     res.status(400).json({
       success: false,
-      message: "Invalid JSON in request body",
+      message: 'Malformed JSON payload',
       error: {
-        code: "INVALID_JSON",
+        code: 'VALIDATION_ERROR',
         details: null,
       },
     });
     return;
   }
 
-  // PostgreSQL unique violation error (code 23505)
-  if (err && typeof err === "object" && (err as any).code === "23505") {
+  // PostgreSQL unique violation
+  if (err && typeof err === 'object' && (err as any).code === '23505') {
     res.status(409).json({
       success: false,
-      message: "A record with this unique identifier already exists",
+      message: 'A record with this identifier already exists',
       error: {
-        code: "DUPLICATE_ENTRY",
-        details: (err as any).detail ?? null,
+        code: 'EMAIL_ALREADY_EXISTS',
+        details: null,
       },
     });
     return;
   }
 
-  // Unexpected internal server error
-  console.error("Unhandled server error:", err);
+  // Internal error fallback - never leak stack traces or SQL details
+  console.error('Unhandled internal error:', err?.message ?? err);
   res.status(500).json({
     success: false,
-    message: "An unexpected error occurred on the server",
+    message: 'An unexpected internal error occurred',
     error: {
-      code: "INTERNAL_SERVER_ERROR",
-      details: env.isProduction ? null : String(err?.message ?? err),
+      code: 'INTERNAL_ERROR',
+      details: null,
     },
   });
 };

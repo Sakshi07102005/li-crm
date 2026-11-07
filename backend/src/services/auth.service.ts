@@ -1,423 +1,499 @@
-import crypto from "crypto";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import pool from "../config/database";
-import { env } from "../config/env";
-import {
-  AuthSuccessResponse,
-  RoleCode,
-  RoleName,
-  TokenPair,
-  UserProfileResponse,
-} from "../types/auth.types";
-import { AppError } from "../utils/AppError";
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { env } from '../config/env';
+import { pool, query, withTransaction } from '../db/pool';
+import { AppError } from '../utils/AppError';
+import { generateRefreshToken, sha256 } from '../utils/crypto';
 import {
   ChangePasswordInput,
   LoginInput,
   RegisterInput,
   UpdateProfileInput,
-} from "../validators/auth.validator";
+} from '../validators/auth.validator';
+import { writeAuditLog } from './audit.service';
 
-interface DbUserWithRole {
+const DUMMY_BCRYPT_HASH =
+  '$2a$12$e8YjGv2Nn.4dDqm/kK8wTe7w14aOQ3V3Uf9uWq9c.9R9j/H1k3V1q';
+
+export interface UserResponse {
   id: string;
   email: string;
-  password_hash: string;
-  first_name: string;
-  last_name: string;
+  firstName: string;
+  lastName: string;
   phone: string | null;
-  role_id: string;
-  role_code: RoleCode;
-  role_name: RoleName;
-  avatar_url: string | null;
-  is_active: boolean;
-  last_login: string | null;
-  created_at: string;
-  updated_at: string;
+  avatarUrl: string | null;
+  role: {
+    code: string;
+    name: string;
+  };
+  managerId?: string | null;
+  isActive: boolean;
+  lastLoginAt: Date | null;
+  createdAt: Date;
+  permissions?: string[];
+}
+
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: string;
+}
+
+export interface AuthResponse {
+  user: UserResponse;
+  tokens: AuthTokens;
+}
+
+function createAccessToken(userId: string, roleCode: string): string {
+  return jwt.sign(
+    {
+      sub: userId,
+      role: roleCode,
+    },
+    env.jwt.accessSecret,
+    {
+      expiresIn: env.jwt.accessExpiresIn as jwt.SignOptions['expiresIn'],
+    },
+  );
 }
 
 export class AuthService {
-  /**
-   * Hashes a raw refresh token using SHA-256 for secure DB lookup.
-   */
-  public static hashToken(token: string): string {
-    return crypto.createHash("sha256").update(token).digest("hex");
-  }
-
-  /**
-   * Generates a short-lived access token (15m) and a refresh token (7d).
-   */
-  public static generateTokenPair(user: {
-    id: string;
-    email: string;
-    roleId: string;
-    role: RoleCode;
-  }): TokenPair {
-    const accessToken = jwt.sign(
-      {
-        userId: user.id,
-        email: user.email,
-        roleId: user.roleId,
-        role: user.role,
-      },
-      env.jwt.secret,
-      { expiresIn: env.jwt.expiresIn as any }
+  static async register(
+    input: RegisterInput,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<AuthResponse> {
+    // 1. Check duplicate email case-insensitively
+    const existing = await query(
+      'SELECT id FROM users WHERE LOWER(email) = LOWER($1)',
+      [input.email],
     );
-
-    const refreshToken = jwt.sign(
-      {
-        userId: user.id,
-        jti: crypto.randomUUID(),
-      },
-      env.jwt.refreshSecret,
-      { expiresIn: env.jwt.refreshExpiresIn as any }
-    );
-
-    return {
-      accessToken,
-      refreshToken,
-      expiresIn: env.jwt.expiresIn,
-      tokenType: "Bearer",
-    };
-  }
-
-  /**
-   * Maps a database user row joined with roles to a sanitized UserProfileResponse.
-   */
-  public static mapToProfile(row: DbUserWithRole): UserProfileResponse {
-    return {
-      id: row.id,
-      email: row.email,
-      roleId: row.role_id,
-      role: row.role_code,
-      roleName: row.role_name,
-      firstName: row.first_name,
-      lastName: row.last_name,
-      phone: row.phone,
-      avatarUrl: row.avatar_url,
-      isActive: row.is_active,
-      lastLogin: row.last_login ? new Date(row.last_login).toISOString() : null,
-      createdAt: new Date(row.created_at).toISOString(),
-      updatedAt: new Date(row.updated_at).toISOString(),
-    };
-  }
-
-  /**
-   * Gets the lowest role ID (Marketing Executive) for public registration.
-   */
-  public static async getLowestRoleId(): Promise<{ id: string; code: RoleCode; name: RoleName }> {
-    const res = await pool.query(
-      `SELECT id, code, name 
-       FROM roles 
-       WHERE code = 'marketing_executive' 
-          OR code = 'marketing' 
-          OR name ILIKE '%Marketing Executive%'
-       LIMIT 1`
-    );
-
-    if (res.rowCount && res.rowCount > 0) {
-      return {
-        id: res.rows[0].id,
-        code: (res.rows[0].code || "marketing_executive") as RoleCode,
-        name: (res.rows[0].name || "Marketing Executive") as RoleName,
-      };
-    }
-
-    // Fallback: fetch role with lowest permissions or last created
-    const fallback = await pool.query(
-      `SELECT id, code, name FROM roles ORDER BY id DESC LIMIT 1`
-    );
-
-    if (fallback.rowCount && fallback.rowCount > 0) {
-      return {
-        id: fallback.rows[0].id,
-        code: (fallback.rows[0].code || "marketing_executive") as RoleCode,
-        name: (fallback.rows[0].name || "Marketing Executive") as RoleName,
-      };
-    }
-
-    throw new AppError("System roles are not configured in the database.", 500, "ROLES_NOT_CONFIGURED");
-  }
-
-  /**
-   * Public Register - Always assigns the lowest role (Marketing Executive).
-   */
-  public static async register(input: RegisterInput): Promise<AuthSuccessResponse> {
-    const email = input.email.toLowerCase().trim();
-
-    // Check if email already registered
-    const existing = await pool.query("SELECT id FROM users WHERE email = $1", [email]);
     if (existing.rowCount && existing.rowCount > 0) {
-      throw AppError.conflict("An account with this email address already exists.", "EMAIL_ALREADY_EXISTS");
+      throw AppError.emailAlreadyExists('Email address is already registered');
     }
 
-    // Force lowest role for public registration
-    const lowestRole = await this.getLowestRoleId();
-    const passwordHash = await bcrypt.hash(input.password, env.bcrypt.saltRounds);
+    // 2. Fetch marketing_executive role (lowest role, strictly assigned on public register)
+    const roleRes = await query(
+      'SELECT id, code, name FROM roles WHERE code = $1',
+      ['marketing_executive'],
+    );
+    if (roleRes.rowCount === 0) {
+      throw AppError.internal('Default registration role not configured');
+    }
+    const role = roleRes.rows[0];
 
-    const insertResult = await pool.query(
-      `INSERT INTO users (email, password_hash, first_name, last_name, phone, role_id, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, true)
-       RETURNING id, email, password_hash, first_name, last_name, phone, role_id, avatar_url, is_active, last_login, created_at, updated_at;`,
-      [
+    // 3. Hash password
+    const passwordHash = await bcrypt.hash(
+      input.password,
+      env.security.bcryptRounds,
+    );
+
+    // 4. Insert user
+    const insertUserSql = `
+      INSERT INTO users (
         email,
-        passwordHash,
-        input.firstName.trim(),
-        input.lastName.trim(),
-        input.phone || null,
-        lowestRole.id,
-      ]
+        password_hash,
+        first_name,
+        last_name,
+        phone,
+        role_id
+      ) VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, email, first_name, last_name, phone, avatar_url, is_active, last_login_at, created_at
+    `;
+    const userRes = await query(insertUserSql, [
+      input.email,
+      passwordHash,
+      input.firstName,
+      input.lastName,
+      input.phone ?? null,
+      role.id,
+    ]);
+    const user = userRes.rows[0];
+
+    // 5. Generate tokens
+    const accessToken = createAccessToken(user.id, role.code);
+    const rawRefreshToken = generateRefreshToken();
+    const tokenHash = sha256(rawRefreshToken);
+
+    await query(
+      `INSERT INTO refresh_tokens (
+        user_id,
+        token_hash,
+        expires_at,
+        user_agent,
+        ip_address
+      ) VALUES ($1, $2, NOW() + ($3 || ' days')::INTERVAL, $4, $5)`,
+      [user.id, tokenHash, String(env.jwt.refreshTokenDays), userAgent ?? null, ip ?? null],
     );
 
-    const userRow = insertResult.rows[0];
-    const userWithRole: DbUserWithRole = {
-      ...userRow,
-      role_code: lowestRole.code,
-      role_name: lowestRole.name,
-    };
-
-    const tokens = this.generateTokenPair({
-      id: userWithRole.id,
-      email: userWithRole.email,
-      roleId: userWithRole.role_id,
-      role: userWithRole.role_code,
+    // 6. Audit log
+    await writeAuditLog({
+      userId: user.id,
+      action: 'auth.register',
+      entityType: 'user',
+      entityId: user.id,
+      newValues: {
+        email: user.email,
+        roleCode: role.code,
+      },
+      ip,
+      userAgent,
     });
 
-    // Store refresh token
-    const tokenHash = this.hashToken(tokens.refreshToken);
-    const decodedRefresh: any = jwt.decode(tokens.refreshToken);
-    const expiresAt = new Date(decodedRefresh.exp * 1000);
-
-    await pool.query(
-      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-       VALUES ($1, $2, $3);`,
-      [userWithRole.id, tokenHash, expiresAt]
-    );
-
     return {
-      user: this.mapToProfile(userWithRole),
-      tokens,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        phone: user.phone,
+        avatarUrl: user.avatar_url,
+        role: {
+          code: role.code,
+          name: role.name,
+        },
+        isActive: user.is_active,
+        lastLoginAt: user.last_login_at,
+        createdAt: user.created_at,
+      },
+      tokens: {
+        accessToken,
+        refreshToken: rawRefreshToken,
+        expiresIn: env.jwt.accessExpiresIn,
+      },
     };
   }
 
-  /**
-   * Login user with credentials.
-   */
-  public static async login(input: LoginInput): Promise<AuthSuccessResponse> {
-    const email = input.email.toLowerCase().trim();
-
-    const userResult = await pool.query<DbUserWithRole>(
+  static async login(
+    input: LoginInput,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<AuthResponse> {
+    const userRes = await query(
       `SELECT u.id, u.email, u.password_hash, u.first_name, u.last_name, u.phone,
-              u.role_id, r.code AS role_code, r.name AS role_name,
-              u.avatar_url, u.is_active, u.last_login, u.created_at, u.updated_at
+              u.avatar_url, u.is_active, u.manager_id, u.last_login_at, u.created_at,
+              r.id AS role_id, r.code AS role_code, r.name AS role_name
        FROM users u
-       JOIN roles r ON u.role_id = r.id
-       WHERE u.email = $1`,
-      [email]
+       JOIN roles r ON r.id = u.role_id
+       WHERE LOWER(u.email) = LOWER($1)`,
+      [input.email],
     );
 
-    if (userResult.rowCount === 0) {
-      throw AppError.unauthorized("Invalid email or password.", "INVALID_CREDENTIALS");
+    if (userRes.rowCount === 0) {
+      // Dummy compare to protect against timing attacks
+      await bcrypt.compare(input.password, DUMMY_BCRYPT_HASH);
+      await writeAuditLog({
+        userId: null,
+        action: 'auth.login_failed',
+        entityType: 'user',
+        newValues: { email: input.email },
+        ip,
+        userAgent,
+      });
+      throw AppError.invalidCredentials('Invalid email or password');
     }
 
-    const user = userResult.rows[0];
+    const user = userRes.rows[0];
 
+    // Check password
+    const isPasswordValid = await bcrypt.compare(
+      input.password,
+      user.password_hash,
+    );
+    if (!isPasswordValid) {
+      await writeAuditLog({
+        userId: user.id,
+        action: 'auth.login_failed',
+        entityType: 'user',
+        entityId: user.id,
+        newValues: { email: input.email },
+        ip,
+        userAgent,
+      });
+      throw AppError.invalidCredentials('Invalid email or password');
+    }
+
+    // Check active status
     if (!user.is_active) {
-      throw AppError.forbidden("Your account has been deactivated. Contact an administrator.", "ACCOUNT_DEACTIVATED");
+      throw AppError.accountDisabled('Account has been disabled');
     }
 
-    const isMatch = await bcrypt.compare(input.password, user.password_hash);
-    if (!isMatch) {
-      throw AppError.unauthorized("Invalid email or password.", "INVALID_CREDENTIALS");
-    }
+    // Update last_login_at
+    await query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [
+      user.id,
+    ]);
 
-    // Update last_login
-    await pool.query("UPDATE users SET last_login = NOW() WHERE id = $1", [user.id]);
-    user.last_login = new Date().toISOString();
+    // Issue tokens
+    const accessToken = createAccessToken(user.id, user.role_code);
+    const rawRefreshToken = generateRefreshToken();
+    const tokenHash = sha256(rawRefreshToken);
 
-    const tokens = this.generateTokenPair({
-      id: user.id,
-      email: user.email,
-      roleId: user.role_id,
-      role: user.role_code,
-    });
-
-    // Store refresh token
-    const tokenHash = this.hashToken(tokens.refreshToken);
-    const decodedRefresh: any = jwt.decode(tokens.refreshToken);
-    const expiresAt = new Date(decodedRefresh.exp * 1000);
-
-    await pool.query(
-      `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-       VALUES ($1, $2, $3);`,
-      [user.id, tokenHash, expiresAt]
+    await query(
+      `INSERT INTO refresh_tokens (
+        user_id,
+        token_hash,
+        expires_at,
+        user_agent,
+        ip_address
+      ) VALUES ($1, $2, NOW() + ($3 || ' days')::INTERVAL, $4, $5)`,
+      [user.id, tokenHash, String(env.jwt.refreshTokenDays), userAgent ?? null, ip ?? null],
     );
 
+    // Audit log
+    await writeAuditLog({
+      userId: user.id,
+      action: 'auth.login',
+      entityType: 'user',
+      entityId: user.id,
+      ip,
+      userAgent,
+    });
+
     return {
-      user: this.mapToProfile(user),
-      tokens,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        phone: user.phone,
+        avatarUrl: user.avatar_url,
+        role: {
+          code: user.role_code,
+          name: user.role_name,
+        },
+        managerId: user.manager_id,
+        isActive: user.is_active,
+        lastLoginAt: new Date(),
+        createdAt: user.created_at,
+      },
+      tokens: {
+        accessToken,
+        refreshToken: rawRefreshToken,
+        expiresIn: env.jwt.accessExpiresIn,
+      },
     };
   }
 
-  /**
-   * Refresh access token with rotation and reuse detection.
-   */
-  public static async refreshToken(tokenStr: string): Promise<{ tokens: TokenPair; user: UserProfileResponse }> {
-    let decoded: any;
-    try {
-      decoded = jwt.verify(tokenStr, env.jwt.refreshSecret);
-    } catch (err: any) {
-      if (err.name === "TokenExpiredError") {
-        throw AppError.unauthorized("Refresh token has expired. Please log in again.", "REFRESH_TOKEN_EXPIRED");
+  static async refreshToken(
+    presentedToken: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<AuthTokens> {
+    const presentedHash = sha256(presentedToken);
+
+    return withTransaction(async (client, commitNow) => {
+      // 1. Lock and select refresh token
+      const tokenRes = await client.query(
+        `SELECT id, user_id, expires_at, revoked_at, replaced_by_id
+         FROM refresh_tokens
+         WHERE token_hash = $1
+         FOR UPDATE`,
+        [presentedHash],
+      );
+
+      if (tokenRes.rowCount === 0) {
+        throw AppError.invalidRefreshToken('Invalid or expired refresh token');
       }
-      throw AppError.unauthorized("Invalid refresh token.", "INVALID_REFRESH_TOKEN");
-    }
 
-    const tokenHash = this.hashToken(tokenStr);
+      const tokenRecord = tokenRes.rows[0];
 
-    const tokenResult = await pool.query(
-      `SELECT * FROM refresh_tokens WHERE token_hash = $1`,
-      [tokenHash]
-    );
+      // 2. Reuse Detection: If already revoked, revoke ALL active tokens for user
+      if (tokenRecord.revoked_at !== null) {
+        await client.query(
+          `UPDATE refresh_tokens
+           SET revoked_at = NOW()
+           WHERE user_id = $1 AND revoked_at IS NULL`,
+          [tokenRecord.user_id],
+        );
 
-    if (tokenResult.rowCount === 0) {
-      throw AppError.unauthorized("Refresh token not found or unrecognized.", "INVALID_REFRESH_TOKEN");
-    }
+        await commitNow();
 
-    const storedToken = tokenResult.rows[0];
+        await writeAuditLog({
+          userId: tokenRecord.user_id,
+          action: 'auth.token_reuse_detected',
+          entityType: 'refresh_token',
+          entityId: tokenRecord.id,
+          ip,
+          userAgent,
+        });
 
-    // Reuse detection: If token was already revoked, someone may be attacking!
-    if (storedToken.revoked_at !== null) {
-      // Invalidate ALL refresh tokens for this user for immediate compromise defense
-      await pool.query(
-        `UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL`,
-        [storedToken.user_id]
+        throw AppError.tokenReuseDetected(
+          'Suspicious token reuse detected. All sessions revoked.',
+        );
+      }
+
+      // 3. Expiration check
+      if (new Date(tokenRecord.expires_at) <= new Date()) {
+        await client.query(
+          'UPDATE refresh_tokens SET revoked_at = NOW() WHERE id = $1',
+          [tokenRecord.id],
+        );
+        throw AppError.invalidRefreshToken('Refresh token has expired');
+      }
+
+      // 4. Verify user exists and is active
+      const userRes = await client.query(
+        `SELECT u.id, u.is_active, r.code AS role_code
+         FROM users u
+         JOIN roles r ON r.id = u.role_id
+         WHERE u.id = $1`,
+        [tokenRecord.user_id],
       );
-      throw AppError.unauthorized(
-        "Compromised refresh token detected. All active sessions have been invalidated. Please log in again.",
-        "TOKEN_REUSE_DETECTED"
-      );
-    }
 
-    // Expiry check
-    if (new Date(storedToken.expires_at) < new Date()) {
-      await pool.query("UPDATE refresh_tokens SET revoked_at = NOW() WHERE id = $1", [storedToken.id]);
-      throw AppError.unauthorized("Refresh token has expired. Please log in again.", "REFRESH_TOKEN_EXPIRED");
-    }
+      if (userRes.rowCount === 0) {
+        throw AppError.unauthorized('User account no longer exists');
+      }
 
-    // Get user with role
-    const userResult = await pool.query<DbUserWithRole>(
-      `SELECT u.id, u.email, u.password_hash, u.first_name, u.last_name, u.phone,
-              u.role_id, r.code AS role_code, r.name AS role_name,
-              u.avatar_url, u.is_active, u.last_login, u.created_at, u.updated_at
-       FROM users u
-       JOIN roles r ON u.role_id = r.id
-       WHERE u.id = $1`,
-      [storedToken.user_id]
-    );
+      const user = userRes.rows[0];
+      if (!user.is_active) {
+        throw AppError.accountDisabled('Account has been disabled');
+      }
 
-    if (userResult.rowCount === 0 || !userResult.rows[0].is_active) {
-      throw AppError.unauthorized("User account not found or deactivated.", "USER_INACTIVE");
-    }
-
-    const user = userResult.rows[0];
-
-    // Generate new token pair (Rotation)
-    const newTokens = this.generateTokenPair({
-      id: user.id,
-      email: user.email,
-      roleId: user.role_id,
-      role: user.role_code,
-    });
-
-    const newTokenHash = this.hashToken(newTokens.refreshToken);
-    const decodedNew: any = jwt.decode(newTokens.refreshToken);
-    const newExpiresAt = new Date(decodedNew.exp * 1000);
-
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
+      // 5. Rotate: create new refresh token
+      const newRawRefreshToken = generateRefreshToken();
+      const newTokenHash = sha256(newRawRefreshToken);
 
       const insertRes = await client.query(
-        `INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-         VALUES ($1, $2, $3)
-         RETURNING id;`,
-        [user.id, newTokenHash, newExpiresAt]
+        `INSERT INTO refresh_tokens (
+          user_id,
+          token_hash,
+          expires_at,
+          user_agent,
+          ip_address
+        ) VALUES ($1, $2, NOW() + ($3 || ' days')::INTERVAL, $4, $5)
+        RETURNING id`,
+        [
+          user.id,
+          newTokenHash,
+          String(env.jwt.refreshTokenDays),
+          userAgent ?? null,
+          ip ?? null,
+        ],
       );
-      const newId = insertRes.rows[0].id;
+      const newRecordId = insertRes.rows[0].id;
 
+      // 6. Revoke old token and set replaced_by_id
       await client.query(
-        `UPDATE refresh_tokens 
-         SET revoked_at = NOW(), replaced_by = $1 
-         WHERE id = $2;`,
-        [newId, storedToken.id]
+        `UPDATE refresh_tokens
+         SET revoked_at = NOW(), replaced_by_id = $1
+         WHERE id = $2`,
+        [newRecordId, tokenRecord.id],
       );
 
-      await client.query("COMMIT");
-    } catch (e) {
-      await client.query("ROLLBACK");
-      throw e;
-    } finally {
-      client.release();
+      const newAccessToken = createAccessToken(user.id, user.role_code);
+
+      return {
+        accessToken: newAccessToken,
+        refreshToken: newRawRefreshToken,
+        expiresIn: env.jwt.accessExpiresIn,
+      };
+    });
+  }
+
+  static async logout(
+    refreshToken: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<void> {
+    const tokenHash = sha256(refreshToken);
+
+    const tokenRes = await query(
+      `SELECT id, user_id, revoked_at
+       FROM refresh_tokens
+       WHERE token_hash = $1`,
+      [tokenHash],
+    );
+
+    if (tokenRes.rowCount && tokenRes.rowCount > 0) {
+      const tokenRecord = tokenRes.rows[0];
+      if (tokenRecord.revoked_at === null) {
+        await query(
+          'UPDATE refresh_tokens SET revoked_at = NOW() WHERE id = $1',
+          [tokenRecord.id],
+        );
+
+        await writeAuditLog({
+          userId: tokenRecord.user_id,
+          action: 'auth.logout',
+          entityType: 'refresh_token',
+          entityId: tokenRecord.id,
+          ip,
+          userAgent,
+        });
+      }
+    }
+    // Logout is strictly idempotent: always succeeds with 200
+  }
+
+  static async getMe(userId: string): Promise<UserResponse> {
+    const userRes = await query(
+      `SELECT u.id, u.email, u.first_name, u.last_name, u.phone, u.avatar_url,
+              u.manager_id, u.is_active, u.last_login_at, u.created_at,
+              r.id AS role_id, r.code AS role_code, r.name AS role_name
+       FROM users u
+       JOIN roles r ON r.id = u.role_id
+       WHERE u.id = $1`,
+      [userId],
+    );
+
+    if (userRes.rowCount === 0) {
+      throw AppError.notFound('User not found');
     }
 
+    const user = userRes.rows[0];
+    if (!user.is_active) {
+      throw AppError.accountDisabled('Account has been disabled');
+    }
+
+    const permRes = await query(
+      `SELECT p.code
+       FROM permissions p
+       JOIN role_permissions rp ON rp.permission_id = p.id
+       WHERE rp.role_id = $1
+       ORDER BY p.code`,
+      [user.role_id],
+    );
+
+    const permissions = permRes.rows.map((row) => row.code as string);
+
     return {
-      tokens: newTokens,
-      user: this.mapToProfile(user),
+      id: user.id,
+      email: user.email,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      phone: user.phone,
+      avatarUrl: user.avatar_url,
+      role: {
+        code: user.role_code,
+        name: user.role_name,
+      },
+      managerId: user.manager_id,
+      isActive: user.is_active,
+      lastLoginAt: user.last_login_at,
+      createdAt: user.created_at,
+      permissions,
     };
   }
 
-  /**
-   * Revoke a refresh token (Logout).
-   */
-  public static async logout(tokenStr: string): Promise<void> {
-    const tokenHash = this.hashToken(tokenStr);
-    await pool.query(
-      `UPDATE refresh_tokens 
-       SET revoked_at = NOW() 
-       WHERE token_hash = $1 AND revoked_at IS NULL`,
-      [tokenHash]
-    );
-  }
-
-  /**
-   * Get user profile by user ID.
-   */
-  public static async getProfile(userId: string): Promise<UserProfileResponse> {
-    const userResult = await pool.query<DbUserWithRole>(
-      `SELECT u.id, u.email, u.password_hash, u.first_name, u.last_name, u.phone,
-              u.role_id, r.code AS role_code, r.name AS role_name,
-              u.avatar_url, u.is_active, u.last_login, u.created_at, u.updated_at
-       FROM users u
-       JOIN roles r ON u.role_id = r.id
-       WHERE u.id = $1`,
-      [userId]
-    );
-
-    if (userResult.rowCount === 0) {
-      throw AppError.notFound("User not found.", "USER_NOT_FOUND");
-    }
-
-    return this.mapToProfile(userResult.rows[0]);
-  }
-
-  /**
-   * Update profile fields.
-   */
-  public static async updateProfile(
+  static async updateMe(
     userId: string,
-    input: UpdateProfileInput
-  ): Promise<UserProfileResponse> {
+    input: UpdateProfileInput,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<UserResponse> {
+    const current = await this.getMe(userId);
+
     const updates: string[] = [];
     const values: any[] = [];
     let idx = 1;
 
     if (input.firstName !== undefined) {
       updates.push(`first_name = $${idx++}`);
-      values.push(input.firstName.trim());
+      values.push(input.firstName);
     }
     if (input.lastName !== undefined) {
       updates.push(`last_name = $${idx++}`);
-      values.push(input.lastName.trim());
+      values.push(input.lastName);
     }
     if (input.phone !== undefined) {
       updates.push(`phone = $${idx++}`);
@@ -429,66 +505,90 @@ export class AuthService {
     }
 
     if (updates.length > 0) {
-      updates.push(`updated_at = NOW()`);
       values.push(userId);
-
-      await pool.query(
-        `UPDATE users 
-         SET ${updates.join(", ")} 
-         WHERE id = $${idx}`,
-        values
+      await query(
+        `UPDATE users SET ${updates.join(', ')} WHERE id = $${idx}`,
+        values,
       );
+
+      await writeAuditLog({
+        userId,
+        action: 'auth.profile_updated',
+        entityType: 'user',
+        entityId: userId,
+        oldValues: {
+          firstName: current.firstName,
+          lastName: current.lastName,
+          phone: current.phone,
+          avatarUrl: current.avatarUrl,
+        },
+        newValues: input,
+        ip,
+        userAgent,
+      });
     }
 
-    return this.getProfile(userId);
+    return this.getMe(userId);
   }
 
-  /**
-   * Change user password and revoke all existing active refresh tokens.
-   */
-  public static async changePassword(
+  static async changePassword(
     userId: string,
-    input: ChangePasswordInput
+    input: ChangePasswordInput,
+    ip?: string,
+    userAgent?: string,
   ): Promise<void> {
-    const userResult = await pool.query(
-      "SELECT id, password_hash FROM users WHERE id = $1",
-      [userId]
+    const userRes = await query(
+      'SELECT id, password_hash, is_active FROM users WHERE id = $1',
+      [userId],
     );
 
-    if (userResult.rowCount === 0) {
-      throw AppError.notFound("User not found.", "USER_NOT_FOUND");
+    if (userRes.rowCount === 0) {
+      throw AppError.notFound('User not found');
     }
 
-    const user = userResult.rows[0];
+    const user = userRes.rows[0];
+    if (!user.is_active) {
+      throw AppError.accountDisabled('Account has been disabled');
+    }
 
-    const isMatch = await bcrypt.compare(input.currentPassword, user.password_hash);
+    const isMatch = await bcrypt.compare(
+      input.currentPassword,
+      user.password_hash,
+    );
     if (!isMatch) {
-      throw AppError.badRequest("Current password entered is incorrect.", "INCORRECT_PASSWORD");
+      throw AppError.invalidCredentials('Current password is incorrect');
     }
 
-    const newHash = await bcrypt.hash(input.newPassword, env.bcrypt.saltRounds);
+    const newHash = await bcrypt.hash(
+      input.newPassword,
+      env.security.bcryptRounds,
+    );
 
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
+    await withTransaction(async (client) => {
+      // 1. Update password
+      await client.query('UPDATE users SET password_hash = $1 WHERE id = $2', [
+        newHash,
+        userId,
+      ]);
 
+      // 2. Revoke all refresh tokens for this user
       await client.query(
-        "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2",
-        [newHash, userId]
+        'UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL',
+        [userId],
       );
 
-      // Invalidate all active refresh tokens for this user
-      await client.query(
-        "UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL",
-        [userId]
+      // 3. Write audit log
+      await writeAuditLog(
+        {
+          userId,
+          action: 'auth.password_changed',
+          entityType: 'user',
+          entityId: userId,
+          ip,
+          userAgent,
+        },
+        client,
       );
-
-      await client.query("COMMIT");
-    } catch (e) {
-      await client.query("ROLLBACK");
-      throw e;
-    } finally {
-      client.release();
-    }
+    });
   }
 }

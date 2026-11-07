@@ -1,34 +1,49 @@
-import { Response } from "express";
+import { Response } from 'express';
+import { ErrorCode } from './AppError';
 
-export interface ApiResponse<T = any> {
-  success: boolean;
+export interface SuccessEnvelope<T = any> {
+  success: true;
   message: string;
   data: T;
-  meta?: Record<string, any>;
+}
+
+export interface ErrorEnvelope {
+  success: false;
+  message: string;
+  error: {
+    code: ErrorCode | string;
+    details: unknown;
+  };
 }
 
 export function sendSuccess<T>(
   res: Response,
   data: T,
-  message = "Operation successful",
+  message = 'Operation successful',
   statusCode = 200,
-  meta?: Record<string, any>
 ): Response {
-  const payload: ApiResponse<T> = {
+  const payload: SuccessEnvelope<T> = {
     success: true,
     message,
     data,
-    ...(meta ? { meta } : {}),
   };
   return res.status(statusCode).json(payload);
 }
 
-export function sendCreated<T>(
+export function sendError(
   res: Response,
-  data: T,
-  message = "Resource created successfully",
-  meta?: Record<string, any>
+  message: string,
+  statusCode = 500,
+  code: ErrorCode | string = 'INTERNAL_ERROR',
+  details: unknown = null,
 ): Response {
-  return sendSuccess(res, data, message, 201, meta);
+  const payload: ErrorEnvelope = {
+    success: false,
+    message,
+    error: {
+      code,
+      details: details ?? null,
+    },
+  };
+  return res.status(statusCode).json(payload);
 }
-
