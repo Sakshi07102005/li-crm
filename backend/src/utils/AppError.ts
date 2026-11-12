@@ -11,6 +11,14 @@ export type ErrorCode =
   | 'NOT_FOUND'
   | 'EMAIL_ALREADY_EXISTS'
   | 'RATE_LIMITED'
+  | 'CORS_NOT_ALLOWED'
+  | 'DUPLICATE_LEAD'
+  | 'INVALID_STATUS_TRANSITION'
+  | 'LEAD_NOT_ASSIGNED'
+  | 'LEAD_CLOSED'
+  | 'INVALID_ASSIGNEE'
+  | 'COMPANY_EXISTS'
+  | 'INVALID_FOLLOWUP_STATE'
   | 'INTERNAL_ERROR';
 
 export class AppError extends Error {
@@ -80,6 +88,38 @@ export class AppError extends Error {
 
   static rateLimited(message = 'Too many requests, please try again later') {
     return new AppError(message, 429, 'RATE_LIMITED');
+  }
+
+  static corsNotAllowed(message = 'CORS origin not allowed') {
+    return new AppError(message, 403, 'CORS_NOT_ALLOWED');
+  }
+
+  static duplicateLead(message = 'Duplicate lead detected', details: unknown = null) {
+    return new AppError(message, 409, 'DUPLICATE_LEAD', details);
+  }
+
+  static invalidStatusTransition(message = 'Invalid status transition', details: unknown = null) {
+    return new AppError(message, 422, 'INVALID_STATUS_TRANSITION', details);
+  }
+
+  static leadNotAssigned(message = 'Lead must be assigned before converting', details: unknown = null) {
+    return new AppError(message, 422, 'LEAD_NOT_ASSIGNED', details);
+  }
+
+  static leadClosed(message = 'Closed leads cannot be modified or assigned', details: unknown = null) {
+    return new AppError(message, 422, 'LEAD_CLOSED', details);
+  }
+
+  static invalidAssignee(message = 'Invalid assignee', details: unknown = null) {
+    return new AppError(message, 400, 'INVALID_ASSIGNEE', details);
+  }
+
+  static companyExists(message = 'A company with this name already exists', details: unknown = null) {
+    return new AppError(message, 409, 'COMPANY_EXISTS', details);
+  }
+
+  static invalidFollowupState(message = 'Follow-up is not in a valid state for this action', details: unknown = null) {
+    return new AppError(message, 422, 'INVALID_FOLLOWUP_STATE', details);
   }
 
   static internal(message = 'Internal server error') {

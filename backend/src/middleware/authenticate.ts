@@ -36,10 +36,18 @@ export async function authenticate(
 
   try {
     const userRes = await query(
-      `SELECT u.id, u.email, u.is_active, r.code AS role_code, r.name AS role_name
+      `SELECT u.id, u.email, u.is_active, u.manager_id,
+              r.code AS role_code, r.name AS role_name,
+              COALESCE(
+                array_agg(p.code ORDER BY p.code) FILTER (WHERE p.code IS NOT NULL),
+                '{}'
+              ) AS permissions
        FROM users u
        JOIN roles r ON r.id = u.role_id
-       WHERE u.id = $1`,
+       LEFT JOIN role_permissions rp ON rp.role_id = r.id
+       LEFT JOIN permissions p ON p.id = rp.permission_id
+       WHERE u.id = $1
+       GROUP BY u.id, u.email, u.is_active, u.manager_id, r.code, r.name`,
       [decoded.sub],
     );
 
@@ -57,6 +65,8 @@ export async function authenticate(
       email: user.email,
       roleCode: user.role_code,
       roleName: user.role_name,
+      permissions: user.permissions as string[],
+      managerId: user.manager_id ?? null,
     };
 
     next();
@@ -64,4 +74,3 @@ export async function authenticate(
     next(err);
   }
 }
-

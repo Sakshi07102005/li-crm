@@ -1,6 +1,7 @@
 import app from './app';
 import { env } from './config/env';
 import { checkDatabaseConnection, pool } from './db/pool';
+import { scheduleReminders, stopScheduledReminders } from './jobs/followupReminders';
 
 async function startServer(): Promise<void> {
   console.log('Connecting to PostgreSQL database...');
@@ -15,6 +16,9 @@ async function startServer(): Promise<void> {
 
   console.log(`Database connection verified: ${env.database.name}`);
 
+  // Start background job scheduler
+  scheduleReminders();
+
   const server = app.listen(env.port, () => {
     console.log(`LI CRM Backend server running on port ${env.port} [${env.nodeEnv}]`);
     console.log(`API Base: http://localhost:${env.port}/api`);
@@ -23,6 +27,7 @@ async function startServer(): Promise<void> {
 
   const shutdown = async (signal: string) => {
     console.log(`\nReceived ${signal}. Shutting down gracefully...`);
+    stopScheduledReminders();
     server.close(async () => {
       console.log('HTTP server closed.');
       await pool.end();

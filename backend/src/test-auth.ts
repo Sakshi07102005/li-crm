@@ -838,6 +838,58 @@ async function runTests() {
         `actions found: ${Array.from(actionsFound).join(', ')}`,
       );
     }
+
+    // -------------------------------------------------------------
+    // Test 16: CORS: (a) disallowed Origin -> 403 with error.code CORS_NOT_ALLOWED, (b) allowed Origin -> 200, (c) no Origin -> 200
+    // -------------------------------------------------------------
+    {
+      // (a) disallowed Origin -> 403 with error.code CORS_NOT_ALLOWED
+      const disallowedRes = await apiFetch(`${baseUrl}/health`, {
+        headers: { Origin: 'http://evil.example' },
+      });
+      const disallowedBody = (await disallowedRes.json()) as any;
+      const okDisallowed =
+        disallowedRes.status === 403 &&
+        disallowedBody.success === false &&
+        disallowedBody.error?.code === 'CORS_NOT_ALLOWED';
+
+      // (b) allowed Origin -> 200
+      const allowedOrigin = env.corsOrigins[0] || 'http://localhost:5173';
+      const allowedRes = await apiFetch(`${baseUrl}/health`, {
+        headers: { Origin: allowedOrigin },
+      });
+      const allowedBody = (await allowedRes.json()) as any;
+      const okAllowed =
+        allowedRes.status === 200 &&
+        allowedBody.success === true &&
+        allowedBody.data?.status === 'healthy';
+
+      // (c) no Origin -> 200
+      const noOriginRes = await apiFetch(`${baseUrl}/health`);
+      const noOriginBody = (await noOriginRes.json()) as any;
+      const okNoOrigin =
+        noOriginRes.status === 200 &&
+        noOriginBody.success === true &&
+        noOriginBody.data?.status === 'healthy';
+
+      const ok = okDisallowed && okAllowed && okNoOrigin;
+      const detail = !okDisallowed
+        ? `(a) failed: status=${disallowedRes.status} body=${JSON.stringify(disallowedBody)}`
+        : !okAllowed
+        ? `(b) failed: status=${allowedRes.status} body=${JSON.stringify(allowedBody)}`
+        : !okNoOrigin
+        ? `(c) failed: status=${noOriginRes.status} body=${JSON.stringify(noOriginBody)}`
+        : undefined;
+
+      record(
+        16,
+        'CORS: (a) disallowed Origin -> 403 with error.code CORS_NOT_ALLOWED, (b) allowed Origin -> 200, (c) no Origin -> 200',
+        ok,
+        disallowedRes.status === 403 ? 200 : disallowedRes.status,
+        200,
+        detail,
+      );
+    }
   } finally {
     // Query run BEFORE throwaway users are cleaned up showing rotated token row with replaced_by_id IS NOT NULL
     console.log('\n=== REFRESH TOKENS WITH replaced_by_id IS NOT NULL (Proof of Rotation Chain - Before Cleanup) ===');

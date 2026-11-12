@@ -71,11 +71,68 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
 
   // PostgreSQL unique violation
   if (err && typeof err === 'object' && (err as any).code === '23505') {
+    const isCompanyDup = (err as any).constraint === 'uq_companies_name_lower';
     res.status(409).json({
       success: false,
-      message: 'A record with this identifier already exists',
+      message: isCompanyDup
+        ? 'A company with this name already exists'
+        : 'A record with this identifier already exists',
       error: {
-        code: 'EMAIL_ALREADY_EXISTS',
+        code: isCompanyDup ? 'COMPANY_EXISTS' : 'EMAIL_ALREADY_EXISTS',
+        details: null,
+      },
+    });
+    return;
+  }
+
+  // PostgreSQL invalid input syntax (e.g. invalid UUID / enum / type representation)
+  if (err && typeof err === 'object' && (err as any).code === '22P02') {
+    res.status(400).json({
+      success: false,
+      message: 'Invalid input syntax or data representation',
+      error: {
+        code: 'VALIDATION_ERROR',
+        details: null,
+      },
+    });
+    return;
+  }
+
+  // PostgreSQL foreign key violation
+  if (err && typeof err === 'object' && (err as any).code === '23503') {
+    const constraint = String((err as any).constraint || '');
+    const isAssignee = constraint.includes('assigned_to') || constraint.includes('assignee');
+    res.status(400).json({
+      success: false,
+      message: isAssignee ? 'Invalid assignee' : 'Referenced entity does not exist',
+      error: {
+        code: isAssignee ? 'INVALID_ASSIGNEE' : 'VALIDATION_ERROR',
+        details: null,
+      },
+    });
+    return;
+  }
+
+  // PostgreSQL check constraint violation
+  if (err && typeof err === 'object' && (err as any).code === '23514') {
+    res.status(400).json({
+      success: false,
+      message: 'Input failed constraint validation check',
+      error: {
+        code: 'VALIDATION_ERROR',
+        details: null,
+      },
+    });
+    return;
+  }
+
+  // PostgreSQL numeric value out of range (e.g. smallint overflow)
+  if (err && typeof err === 'object' && (err as any).code === '22003') {
+    res.status(400).json({
+      success: false,
+      message: 'Value is out of range for the field type',
+      error: {
+        code: 'VALIDATION_ERROR',
         details: null,
       },
     });

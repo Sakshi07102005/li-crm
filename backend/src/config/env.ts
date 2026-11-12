@@ -9,6 +9,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   CORS_ORIGIN: z.string().optional(),
   CORS_ORIGINS: z.string().optional(),
+  APP_TIMEZONE: z.string().default('Asia/Kolkata'),
 
   // Database (plain pg pool)
   DB_HOST: z.string().default('localhost'),
@@ -38,6 +39,9 @@ const envSchema = z.object({
   SEED_ADMIN_EMAIL: z.string().email().default('admin@licrm.example'),
   SEED_ADMIN_PASSWORD: z.string().default('Admin@12345'),
   SEED_SAMPLE_PASSWORD: z.string().default('Sample@12345'),
+  SCHEDULER_ENABLED: z.string().optional().default('true').transform(v => v === 'true'),
+  REMINDER_MINUTES: z.string().optional().default('15').transform(v => parseInt(v, 10)),
+  FIREBASE_SERVICE_ACCOUNT_PATH: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -70,6 +74,7 @@ const bcryptRounds = raw.BCRYPT_ROUNDS ?? raw.BCRYPT_SALT_ROUNDS ?? 12;
 export const env = {
   nodeEnv: raw.NODE_ENV,
   port: raw.PORT,
+  appTimezone: raw.APP_TIMEZONE,
   corsOrigins,
   isProduction: raw.NODE_ENV === 'production',
   isTest: raw.NODE_ENV === 'test',
@@ -86,16 +91,15 @@ export const env = {
     accessExpiresIn: jwtExpiresIn,
     refreshTokenDays: raw.REFRESH_TOKEN_DAYS,
   },
-  security: {
-    bcryptRounds,
-  },
-  rateLimit: {
-    max: raw.AUTH_RATE_LIMIT_MAX,
-    windowMinutes: raw.AUTH_RATE_LIMIT_WINDOW_MINUTES,
-  },
+  security: { bcryptRounds },
+  rateLimit: { max: raw.AUTH_RATE_LIMIT_MAX, windowMinutes: raw.AUTH_RATE_LIMIT_WINDOW_MINUTES },
   seed: {
     adminEmail: raw.SEED_ADMIN_EMAIL,
     adminPassword: raw.SEED_ADMIN_PASSWORD,
     samplePassword: raw.SEED_SAMPLE_PASSWORD,
   },
+  // Module 7 flags
+  schedulerEnabled: raw.SCHEDULER_ENABLED,
+  reminderMinutes: raw.REMINDER_MINUTES,
+  firebaseServiceAccountPath: raw.FIREBASE_SERVICE_ACCOUNT_PATH,
 };

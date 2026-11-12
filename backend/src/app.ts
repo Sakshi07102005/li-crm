@@ -6,6 +6,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { notFound } from './middleware/notFound';
 import { requestIdMiddleware, requestLogger } from './middleware/requestLogger';
 import { rootRouter } from './routes';
+import { AppError } from './utils/AppError';
 
 const app: Express = express();
 
@@ -31,7 +32,7 @@ app.use(
       ) {
         return callback(null, true);
       }
-      return callback(new Error(`CORS origin not allowed: ${origin}`));
+      return callback(AppError.corsNotAllowed('CORS origin not allowed'));
     },
     credentials: true,
   }),

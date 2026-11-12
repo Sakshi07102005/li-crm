@@ -158,7 +158,8 @@ function mkLead(leadName: string, extra: Record<string, any> = {}) {
     leadName,
     productId: 1,
     sourceId: 1,
-    email: 'test@example.com',
+    email: `${leadName.toLowerCase().replace(/[^a-z0-9]/g, '')}@example.com`,
+    allowDuplicate: true,
     ...extra,
   };
 }

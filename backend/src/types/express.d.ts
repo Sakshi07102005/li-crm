@@ -3,6 +3,8 @@ export interface AuthUser {
   email: string;
   roleCode: string;
   roleName: string;
+  permissions: string[];
+  managerId: string | null;
 }
 
 declare global {
@@ -12,4 +14,3 @@ declare global {
     }
   }
 }
-

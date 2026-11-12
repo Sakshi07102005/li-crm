@@ -37,6 +37,7 @@
   - `NOT_FOUND` (404)
   - `EMAIL_ALREADY_EXISTS` (409)
   - `RATE_LIMITED` (429)
+  - `CORS_NOT_ALLOWED` (403)
   - `INTERNAL_ERROR` (500)
 - **Known-Issues Entry**: Duplicate lead detection is performed in the **API layer (Module 5)**, not via a database unique constraint on email or mobile.
 
@@ -338,3 +339,64 @@ Updates password and revokes all active refresh tokens for the authenticated use
   "data": null
 }
 ```
+
+---
+
+# Module 4 – Role-Based Access Control (RBAC) & User Management
+
+## Authorization Model
+- Permissions are DB-driven (`role_permissions` join `permissions`). No hardcoded role-permission mappings.
+- `req.user.permissions`: string[] is populated during JWT authentication.
+- Scoping rules:
+  - `admin`: All users, all leads (`leads.view_all`).
+  - `business_head`: Self + direct reports (`users.view_team`), leads assigned to self/reports (`leads.view_team`).
+  - `sales_executive`: Self only (`leads.view_own`).
+  - `marketing_executive`: Marketing source leads or created by self (`leads.view_marketing`).
+- Any access violation writes an audit log with action `authz.denied`.
+
+## User Management Endpoints
+
+### 9. Get Roles
+`GET /api/roles` (Authenticated)
+Returns all system roles for dropdowns and role assignment.
+
+### 10. Get RBAC Permissions & Scope
+`GET /api/rbac/permissions` (Authenticated)
+Returns current user role, granted permission codes, and data visibility scope.
+
+### 11. List Users
+`GET /api/users` (Requires `users.manage` OR `users.view_team`)
+Query Parameters: `page`, `limit` (max 100), `search`, `roleCode`, `isActive`, `sort`.
+Admins see all users; Business Heads see only self and direct reports.
+
+### 12. Get User Details
+`GET /api/users/:id` (Requires `users.manage` OR `users.view_team`)
+Returns safe user profile. If target is outside the caller's scope, returns `404 NOT_FOUND` (never leaks existence with 403).
+
+### 13. Create User
+`POST /api/users` (Requires `users.manage`)
+Creates user with assigned role, optional manager ID, and password policy validation. Writes audit log `user.create`.
+
+### 14. Update User Profile
+`PUT /api/users/:id` (Requires `users.manage`)
+Updates `firstName`, `lastName`, `phone`, or `managerId`. Rejects modifications to `role` or `email` (`400 VALIDATION_ERROR`). Writes audit log `user.updated`.
+
+### 15. Change User Role
+`PATCH /api/users/:id/role` (Requires `users.manage`)
+Safeguards:
+- Admins cannot change their own role (`403 FORBIDDEN`).
+- Cannot demote the last active admin (`403 FORBIDDEN`).
+Writes audit log `user.role_changed`.
+
+### 16. Change User Status (Activate/Deactivate)
+`PATCH /api/users/:id/status` (Requires `users.manage`)
+Safeguards:
+- Admins cannot deactivate their own account (`403 FORBIDDEN`).
+- Cannot deactivate the last active admin (`403 FORBIDDEN`).
+- Deactivating a user immediately revokes all their active refresh tokens.
+Writes audit log `user.status_changed`.
+
+### 17. Reset User Password
+`POST /api/users/:id/reset-password` (Requires `users.manage`)
+Admin reset of user password. Revokes all active refresh tokens for the target user. Writes audit log `user.password_reset`.
+

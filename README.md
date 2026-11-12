@@ -3,7 +3,7 @@
 A web and mobile CRM for Logische Innovative to manage leads, companies, contacts,
 follow-ups and sales activities across LearnProfessional, BookEHealth and LI.
 
-> Status: **Module 3 (Backend Core & Authentication)** completed.
+> Status: **Module 3 (Backend Core & Authentication)** and **Module 4 (Role-Based Access Control & User Management)** completed.
 
 ## Repository Structure
 
@@ -45,8 +45,9 @@ npm run db:verify   # verifies 51 schema constraints and tables
 # 3. Compile TypeScript
 npm run build
 
-# 4. Run automated Auth Integration Tests (15 test suites against real PostgreSQL)
-npm run test:auth
+# 4. Run automated Integration Tests against live PostgreSQL
+npm run test:auth   # 15 test suites for auth, JWT, token rotation, and safeguards
+npm run test:rbac   # 42 test suites for RBAC matrix, scoping, user CRUD, admin safeguards
 
 # 5. Start development server
 npm run dev
