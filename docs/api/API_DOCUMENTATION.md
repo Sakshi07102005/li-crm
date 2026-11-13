@@ -481,3 +481,4 @@ CSV and XLSX exports enforce **Formula Injection Defense** (prefixes dangerous c
 - **Permission Required:** `audit.view`
 - **Query Parameters:** `page`, `limit`, `action`, `entityType`, `startDate`, `endDate`, `userId`
 - **Security:** Redacts sensitive credentials, passwords, and tokens from `oldValues` and `newValues`.
+

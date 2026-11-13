@@ -208,3 +208,4 @@
 2. **Audio Quality:** Use a decent microphone or headset in a quiet room.
 3. **Screen Resolution:** Record at 1080p (1920x1080) with 125% or 150% UI scaling for readable code.
 4. **Mouse Pointer:** Use smooth mouse movements to highlight relevant sections as you speak about them.
+

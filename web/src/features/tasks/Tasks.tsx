@@ -1,8 +1,9 @@
 // src/features/tasks/Tasks.tsx
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/shared/api/client';
 import { Card, CardHeader, CardTitle, CardContent } from '@/ui/Card';
+import { Plus, CheckCircle, Clock, X } from 'lucide-react';
 
 interface Task {
   id: string;
@@ -28,7 +29,17 @@ interface Task {
 }
 
 export default function Tasks() {
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<string>('all');
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    priority: 'medium',
+    dueDate: new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10),
+  });
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['tasks'],
@@ -37,6 +48,47 @@ export default function Tasks() {
       return res.data.data ?? res.data;
     },
   });
+
+  const createMutation = useMutation({
+    mutationFn: async (payload: typeof formData) => {
+      const res = await api.post('/tasks', payload);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      setIsAddOpen(false);
+      setFormError(null);
+      setFormData({
+        title: '',
+        description: '',
+        priority: 'medium',
+        dueDate: new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10),
+      });
+    },
+    onError: (err: any) => {
+      setFormError(err.response?.data?.message || 'Failed to create task');
+    },
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const res = await api.patch(`/tasks/${id}/status`, { status });
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+    if (!formData.title.trim()) {
+      setFormError('Task title is required');
+      return;
+    }
+    createMutation.mutate(formData);
+  };
 
   if (isLoading) return <div className="text-gray-500 p-8">Loading tasks…</div>;
   if (isError) return <div className="text-red-600 p-8">Failed to load tasks.</div>;
@@ -83,20 +135,29 @@ export default function Tasks() {
           <h1 className="text-2xl font-bold text-gray-800">Tasks</h1>
           <p className="text-sm text-gray-500">Manage follow-ups, calls, and customer activities</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          {['all', 'pending', 'in_progress', 'completed', 'overdue'].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setFilter(tab)}
-              className={`px-3 py-1 text-xs font-medium rounded capitalize transition ${
-                filter === tab
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white border text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              {tab.replace('_', ' ')}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsAddOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg shadow hover:bg-blue-700 transition"
+          >
+            <Plus size={15} />
+            Add Task
+          </button>
+          <div className="flex gap-1 flex-wrap">
+            {['all', 'pending', 'in_progress', 'completed', 'overdue'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setFilter(tab)}
+                className={`px-2.5 py-1 text-xs font-medium rounded capitalize transition ${
+                  filter === tab
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white border text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {tab.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -130,9 +191,116 @@ export default function Tasks() {
                 <div className="text-gray-500 text-[11px] pt-1">
                   Assignee: <strong className="text-gray-700">{task.assignedTo?.name ?? 'Unassigned'}</strong>
                 </div>
+
+                {/* Quick Status Action Buttons */}
+                <div className="pt-2 border-t flex items-center justify-end gap-1.5">
+                  {task.status !== 'completed' && (
+                    <button
+                      onClick={() => statusMutation.mutate({ id: task.id, status: 'completed' })}
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded hover:bg-green-100 transition text-[11px] font-medium"
+                    >
+                      <CheckCircle size={12} />
+                      Complete
+                    </button>
+                  )}
+                  {task.status === 'pending' && (
+                    <button
+                      onClick={() => statusMutation.mutate({ id: task.id, status: 'in_progress' })}
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded hover:bg-amber-100 transition text-[11px] font-medium"
+                    >
+                      <Clock size={12} />
+                      Start
+                    </button>
+                  )}
+                </div>
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Add Task Modal */}
+      {isAddOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-5">
+            <div className="flex items-center justify-between pb-3 border-b">
+              <h2 className="text-base font-bold text-gray-800">Create New Task</h2>
+              <button onClick={() => setIsAddOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-3 pt-3 text-sm">
+              {formError && (
+                <div className="p-2 text-xs bg-red-50 text-red-700 border border-red-200 rounded">
+                  {formError}
+                </div>
+              )}
+              <div>
+                <label className="block text-gray-700 font-medium text-xs mb-1">
+                  Task Title <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Call client for contract review"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className="w-full px-3 py-1.5 border rounded outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-gray-700 font-medium text-xs mb-1">Description</label>
+                <textarea
+                  rows={2}
+                  placeholder="Key discussion points, agenda..."
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full px-3 py-1.5 border rounded outline-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-gray-700 font-medium text-xs mb-1">Priority</label>
+                  <select
+                    value={formData.priority}
+                    onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                    className="w-full px-3 py-1.5 border rounded outline-none bg-white"
+                  >
+                    <option value="high">High Priority</option>
+                    <option value="medium">Medium Priority</option>
+                    <option value="low">Low Priority</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-medium text-xs mb-1">Due Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.dueDate}
+                    onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                    className="w-full px-3 py-1.5 border rounded outline-none bg-white"
+                  >
+                  </input>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <button
+                  type="button"
+                  onClick={() => setIsAddOpen(false)}
+                  className="px-3 py-1.5 border rounded text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={createMutation.isPending}
+                  className="px-4 py-1.5 bg-blue-600 text-white rounded text-xs font-semibold disabled:opacity-50"
+                >
+                  {createMutation.isPending ? 'Creating…' : 'Create Task'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
