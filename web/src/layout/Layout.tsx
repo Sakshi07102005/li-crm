@@ -5,6 +5,8 @@ import {
   Building2, 
   CheckSquare, 
   BarChart3,
+  Layers,
+  ShieldCheck,
   LogOut, 
   Briefcase,
   Sparkles
@@ -14,9 +16,11 @@ import { useAuth } from '@/shared/auth/AuthContext';
 const links = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/leads', label: 'Leads', icon: Users },
+  { to: '/pipeline', label: 'Pipeline Board', icon: Layers },
   { to: '/companies', label: 'Companies', icon: Building2 },
   { to: '/tasks', label: 'Tasks', icon: CheckSquare },
   { to: '/reports', label: 'Reports & BI', icon: BarChart3 },
+  { to: '/audit', label: 'Audit Trail', icon: ShieldCheck },
 ];
 
 export default function Layout() {
@@ -28,9 +32,11 @@ export default function Layout() {
     if (path.startsWith('/dashboard')) return 'Dashboard Overview';
     if (path.startsWith('/leads/')) return 'Lead Profile';
     if (path.startsWith('/leads')) return 'Lead Management';
+    if (path.startsWith('/pipeline')) return 'Pipeline Kanban Board';
     if (path.startsWith('/companies')) return 'Companies Directory';
     if (path.startsWith('/tasks')) return 'Tasks & Activities';
     if (path.startsWith('/reports')) return 'Reports & Analytics';
+    if (path.startsWith('/audit')) return 'Compliance & Audit Logs';
     return 'CRM Platform';
   };
 

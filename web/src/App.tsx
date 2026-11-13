@@ -4,9 +4,11 @@ import Layout from '@/layout/Layout';
 import Dashboard from '@/features/dashboard/Dashboard';
 import LeadsList from '@/features/leads/LeadsList';
 import LeadDetail from '@/features/leads/LeadDetail';
+import Board from '@/features/pipeline/Board';
 import Companies from '@/features/companies/Companies';
 import Tasks from '@/features/tasks/Tasks';
 import Reports from '@/features/reports/Reports';
+import AuditLog from '@/features/audit/AuditLog';
 import NotFound from '@/ui/NotFound';
 import Forbidden from '@/ui/Forbidden';
 import Login from '@/features/auth/Login';
@@ -25,9 +27,11 @@ export default function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/leads" element={<LeadsList />} />
         <Route path="/leads/:id" element={<LeadDetail />} />
+        <Route path="/pipeline" element={<Board />} />
         <Route path="/companies" element={<Companies />} />
         <Route path="/tasks" element={<Tasks />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/audit" element={<AuditLog />} />
         <Route path="/403" element={<Forbidden />} />
         <Route path="*" element={<NotFound />} />
       </Route>

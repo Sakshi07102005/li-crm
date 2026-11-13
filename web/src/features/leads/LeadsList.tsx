@@ -24,6 +24,29 @@ export default function LeadsList() {
   const [formError, setFormError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('all');
+  const [duplicateStatus, setDuplicateStatus] = useState<{ isDuplicate: boolean; inScopeCount: number; outOfScopeCount: number } | null>(null);
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
+
+  const checkDuplicates = async () => {
+    if (!formData.email.trim() && !formData.mobile.trim()) return;
+    try {
+      setIsCheckingDuplicate(true);
+      const res = await api.post('/leads/check-duplicate', {
+        email: formData.email.trim() || undefined,
+        mobile: formData.mobile.trim() || undefined,
+      });
+      const resData = res.data.data ?? res.data;
+      setDuplicateStatus({
+        isDuplicate: Boolean(resData.isDuplicate),
+        inScopeCount: resData.inScopeDuplicates?.length ?? 0,
+        outOfScopeCount: resData.outOfScopeCount ?? 0,
+      });
+    } catch (_) {
+      // ignore
+    } finally {
+      setIsCheckingDuplicate(false);
+    }
+  };
 
   const [formData, setFormData] = useState({
     leadName: '',
@@ -438,7 +461,11 @@ export default function LeadsList() {
                     type="email"
                     placeholder="ronald@vancehealth.com"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={(e) => {
+                      setFormData({ ...formData, email: e.target.value });
+                      setDuplicateStatus(null);
+                    }}
+                    onBlur={checkDuplicates}
                     className="w-full px-3.5 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition text-sm"
                   />
                 </div>
@@ -451,11 +478,34 @@ export default function LeadsList() {
                     type="tel"
                     placeholder="+1 555-0199"
                     value={formData.mobile}
-                    onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
+                    onChange={(e) => {
+                      setFormData({ ...formData, mobile: e.target.value });
+                      setDuplicateStatus(null);
+                    }}
+                    onBlur={checkDuplicates}
                     className="w-full px-3.5 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition text-sm"
                   />
                 </div>
               </div>
+
+              {/* Inline Duplicate Detection Banner */}
+              {isCheckingDuplicate && (
+                <p className="text-[11px] text-slate-400 italic">Checking duplicate index...</p>
+              )}
+              {duplicateStatus && duplicateStatus.isDuplicate ? (
+                <div className="p-3 text-xs bg-amber-50 text-amber-900 border border-amber-200 rounded-xl space-y-0.5">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <span>⚠️ Duplicate Match Found</span>
+                  </div>
+                  <p className="text-[11px] text-amber-800">
+                    Matches in your territory: <strong>{duplicateStatus.inScopeCount}</strong> | Out-of-scope duplicates: <strong>{duplicateStatus.outOfScopeCount}</strong>
+                  </p>
+                </div>
+              ) : duplicateStatus && !duplicateStatus.isDuplicate ? (
+                <div className="p-2 text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl">
+                  ✓ Verified: No matching duplicate leads in database.
+                </div>
+              ) : null}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
