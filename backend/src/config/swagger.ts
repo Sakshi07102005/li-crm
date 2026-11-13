@@ -663,5 +663,28 @@ export const swaggerDocument = {
         responses: { '201': { description: 'Activity created' } },
       },
     },
+    '/api/notifications/test-email': {
+      post: {
+        summary: 'Send a test email to the authenticated user (users.manage)',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Test email result',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    sent: {
+                      type: 'boolean',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   },
 };

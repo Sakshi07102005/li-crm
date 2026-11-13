@@ -1,6 +1,9 @@
 import { Router, Request, Response } from 'express';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerDocument } from '../config/swagger';
+import { ensurePermission } from '../utils/permissions';
+import { sendEmail, leadAssignedEmail } from '../services/email.service';
+import { AuthUser } from '../types/express';
 import { authRoutes } from './auth.routes';
 import { healthRoutes } from './health.routes';
 import { userRoutes } from './user.routes';
@@ -26,6 +29,20 @@ router.use('/companies', companyRoutes);
 router.use('/contacts', contactRoutes);
 router.use('/followups', followupRoutes);
 router.use('/tasks', taskRoutes);
+
+/** Test‑email endpoint */
+router.post(
+  ['/notifications/test-email', '/api/notifications/test-email'],
+  ensurePermission('users.manage'),
+  async (req: Request, res: Response) => {
+    const user = (req.user as AuthUser) || { email: 'test@example.com' };
+    // Re‑use any template – subject/body not critical for test
+    const tmpl = leadAssignedEmail({ leadId: 'test' });
+    const result = await sendEmail({ to: user.email, subject: tmpl.subject, html: tmpl.html, text: tmpl.text });
+    res.json({ sent: result.sent });
+  },
+);
+
 router.use('/notifications', notificationRoutes);
 router.use('/audit-logs', auditRoutes);
 router.use('/', reportRoutes);

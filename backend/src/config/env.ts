@@ -34,6 +34,15 @@ const envSchema = z.object({
   // Rate Limiting
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   AUTH_RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().int().positive().default(15),
+  // Email notifications
+  EMAIL_ENABLED: z.coerce.boolean().default(false),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_SECURE: z.coerce.boolean().default(false),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  EMAIL_FROM: z.string().default('LI CRM <no-reply@licrm.example>'),
+  WEB_APP_URL: z.string().default('http://localhost:5173'),
 
   // Seed configuration for tests
   SEED_ADMIN_EMAIL: z.string().email().default('admin@licrm.example'),
@@ -98,6 +107,16 @@ export const env = {
     adminPassword: raw.SEED_ADMIN_PASSWORD,
     samplePassword: raw.SEED_SAMPLE_PASSWORD,
   },
+  // Email settings
+  emailEnabled: raw.EMAIL_ENABLED,
+  smtpHost: raw.SMTP_HOST,
+  smtpPort: raw.SMTP_PORT,
+  smtpSecure: raw.SMTP_SECURE,
+  smtpUser: raw.SMTP_USER,
+  smtpPass: raw.SMTP_PASS,
+  emailFrom: raw.EMAIL_FROM,
+  webAppUrl: raw.WEB_APP_URL,
+
   // Module 7 flags
   schedulerEnabled: raw.SCHEDULER_ENABLED,
   reminderMinutes: raw.REMINDER_MINUTES,

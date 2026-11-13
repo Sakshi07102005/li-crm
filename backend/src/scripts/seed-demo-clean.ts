@@ -1,15 +1,15 @@
 // src/scripts/seed-demo-clean.ts
 // Removes only demo data inserted by seed-demo.ts
 import { Pool } from 'pg';
-import { config } from '../config/env';
+import { env } from '../config/env';
 
 const pool = new Pool({
-  host: config.DB_HOST,
-  port: config.DB_PORT,
-  user: config.DB_USER,
-  password: config.DB_PASSWORD,
-  database: config.DB_NAME,
-  ssl: config.DB_SSL,
+  host: env.database.host,
+  port: env.database.port,
+  user: env.database.user,
+  password: env.database.password,
+  database: env.database.name,
+  ssl: env.database.ssl,
 });
 
 async function main() {

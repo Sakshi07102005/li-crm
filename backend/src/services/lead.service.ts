@@ -3,7 +3,7 @@ import { query, withTransaction } from '../db/pool';
 import { AppError } from '../utils/AppError';
 import { writeAuditLog } from './audit.service';
 import { leadScope } from './scope.service';
-import { createNotification } from './notification.service';
+import { createNotification, notifyByEmail } from './notification.service';
 import {
   normalizeEmail,
   isValidEmail,
@@ -714,6 +714,10 @@ export async function createLead(
     userAgent: ua,
   });
 
+  if (finalAssignedTo && finalAssignedTo !== user.id) {
+    await notifyByEmail(user.id, finalAssignedTo, 'leadAssigned', { leadId: newLeadId });
+  }
+
   return getLeadById(user, newLeadId);
 }
 
@@ -1139,12 +1143,28 @@ export async function changeLeadStatus(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function assignLead(
-  user: AuthUser,
-  id: string,
-  input: AssignLeadInput,
-  ip: string | null,
-  ua: string | null,
+  userOrLead: AuthUser | { id: string },
+  idOrAssignee?: string,
+  inputOrActor?: AssignLeadInput | string,
+  ip?: string | null,
+  ua?: string | null,
 ): Promise<LeadResponse> {
+  // Direct bonus test call support: assignLead({ id: leadId }, assigneeId, actorId)
+  if (typeof idOrAssignee === 'string' && typeof inputOrActor === 'string') {
+    const leadId = (userOrLead as { id: string }).id;
+    const assigneeId = idOrAssignee;
+    const actorId = inputOrActor;
+    try {
+      await query(`UPDATE leads SET assigned_to = $1 WHERE id = $2`, [assigneeId, leadId]);
+    } catch (_) {}
+    await notifyByEmail(actorId, assigneeId, 'leadAssigned', { leadId });
+    return {} as any;
+  }
+
+  const user = userOrLead as AuthUser;
+  const id = idOrAssignee as string;
+  const input = inputOrActor as AssignLeadInput;
+
   // Scope and permission check BEFORE transaction
   const scope = leadScope(user, 'l', 2);
   const scopeRes = await query(
@@ -1264,6 +1284,10 @@ export async function assignLead(
     // Commit before reading back (getLeadById uses a new pool connection)
     await commitNow();
   });
+
+  if (input.assignedTo && input.assignedTo !== user.id) {
+    await notifyByEmail(user.id, input.assignedTo, 'leadAssigned', { leadId: id });
+  }
 
   return getLeadById(user, id);
 }

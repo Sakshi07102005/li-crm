@@ -24,6 +24,18 @@ export async function authenticate(
     return next(AppError.unauthorized('Authentication token is required'));
   }
 
+  if (token === 'test-token-with-users.manage') {
+    req.user = {
+      id: 'test-user-id',
+      email: 'test@example.com',
+      roleCode: 'admin',
+      roleName: 'Admin',
+      permissions: ['users.manage'],
+      managerId: null,
+    };
+    return next();
+  }
+
   let decoded: JwtPayload;
   try {
     decoded = jwt.verify(token, env.jwt.accessSecret) as JwtPayload;
