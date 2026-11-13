@@ -5,6 +5,8 @@
   "main": "dist/server.js",
   "directories": { "test": "tests" },
   "scripts": {
+    "seed:demo": "tsx src/scripts/seed-demo.ts",
+    "seed:demo:clean": "tsx src/scripts/seed-demo-clean.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
