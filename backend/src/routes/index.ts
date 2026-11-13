@@ -44,7 +44,7 @@ router.post(
 );
 
 router.use('/notifications', notificationRoutes);
-router.use('/audit-logs', auditRoutes);
+router.use(['/audit-logs', '/audit'], auditRoutes);
 router.use('/', reportRoutes);
 router.use('/', rbacRoutes);
 

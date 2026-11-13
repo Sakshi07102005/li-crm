@@ -7,7 +7,8 @@ import {
   ShieldCheck, 
   Filter, 
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  AlertCircle
 } from 'lucide-react';
 
 interface AuditLogItem {
@@ -31,18 +32,24 @@ export default function AuditLog() {
   const [page, setPage] = useState(1);
   const [selectedAction, setSelectedAction] = useState('all');
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['audit-logs', page, selectedAction],
     queryFn: async () => {
       const params: any = { page, limit: 15 };
       if (selectedAction !== 'all') params.action = selectedAction;
-      const res = await api.get('/audit', { params });
-      return res.data.data ?? res.data;
+      try {
+        const res = await api.get('/audit-logs', { params });
+        return res.data.data ?? res.data;
+      } catch {
+        const res = await api.get('/audit', { params });
+        return res.data.data ?? res.data;
+      }
     },
   });
 
-  const logs: AuditLogItem[] = data?.logs ?? (Array.isArray(data) ? data : []);
-  const meta = data?.meta ?? { total: logs.length, page: 1, totalPages: 1 };
+  const logs: AuditLogItem[] = data?.items ?? data?.logs ?? (Array.isArray(data) ? data : []);
+  const total = Number(data?.total ?? data?.meta?.total ?? logs.length);
+  const totalPages = Math.max(1, Math.ceil(total / 15));
 
   const getActionBadge = (action: string) => {
     const a = action.toLowerCase();
@@ -66,7 +73,7 @@ export default function AuditLog() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Audit Trail & Compliance</h1>
             <span className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200/60 px-2.5 py-0.5 rounded-full">
-              {meta.total ?? logs.length} Events
+              {total} Events
             </span>
           </div>
           <p className="text-sm text-slate-500 mt-0.5">
@@ -86,11 +93,15 @@ export default function AuditLog() {
             className="text-xs font-medium bg-white border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm"
           >
             <option value="all">All Events</option>
-            <option value="create">Created</option>
-            <option value="update">Updated</option>
-            <option value="delete">Deleted</option>
-            <option value="status_change">Status Change</option>
-            <option value="lead_assigned">Reassigned</option>
+            <option value="lead.create">Lead Created</option>
+            <option value="lead.update">Lead Updated</option>
+            <option value="lead.assign">Lead Reassigned</option>
+            <option value="lead.status_change">Lead Status Change</option>
+            <option value="company.create">Company Created</option>
+            <option value="task.create">Task Created</option>
+            <option value="followup.create">Follow-up Created</option>
+            <option value="auth.login">User Login</option>
+            <option value="auth.refresh">Token Refreshed</option>
           </select>
         </div>
       </div>
@@ -107,16 +118,19 @@ export default function AuditLog() {
 
         <CardContent className="pt-2">
           {isLoading ? (
-            <div className="p-8 text-center text-slate-400 animate-pulse text-sm">
+            <div className="p-12 text-center text-slate-400 animate-pulse text-sm">
               Loading audit logs...
             </div>
           ) : isError ? (
-            <div className="p-6 text-center text-rose-600 text-sm">
-              Failed to load audit logs. Check audit.view permissions.
+            <div className="p-6 text-center text-rose-600 text-sm flex items-center justify-center gap-2">
+              <AlertCircle size={16} />
+              <span>
+                {(error as any)?.response?.data?.message || 'Failed to load audit logs. Please verify backend is running.'}
+              </span>
             </div>
           ) : logs.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 text-sm">
-              No audit logs recorded for this criteria.
+            <div className="p-12 text-center text-slate-400 text-sm">
+              No audit records found for &quot;{selectedAction === 'all' ? 'All Events' : selectedAction}&quot;.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -141,7 +155,7 @@ export default function AuditLog() {
                       </td>
                       <td className="py-3 px-3">
                         <div className="font-semibold text-slate-800">
-                          {log.user?.name || log.user?.email || 'System'}
+                          {log.user?.name || log.user?.email || 'System / Admin'}
                         </div>
                         {log.user?.email && (
                           <span className="text-[10px] text-slate-400 block">{log.user.email}</span>
@@ -150,7 +164,7 @@ export default function AuditLog() {
                       <td className="py-3 px-3">{getActionBadge(log.action)}</td>
                       <td className="py-3 px-3">
                         <span className="font-mono text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">
-                          {log.entityType ? `${log.entityType}:${log.entityId?.slice(0, 8)}...` : '—'}
+                          {log.entityType ? `${log.entityType}${log.entityId ? `:${log.entityId.slice(0, 8)}...` : ''}` : '—'}
                         </span>
                       </td>
                       <td className="py-3 px-3 text-slate-500 font-mono text-[11px]">
@@ -164,10 +178,10 @@ export default function AuditLog() {
           )}
 
           {/* Pagination Controls */}
-          {meta.totalPages > 1 && (
+          {totalPages > 1 && (
             <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
               <span>
-                Page {page} of {meta.totalPages}
+                Page {page} of {totalPages}
               </span>
               <div className="flex items-center gap-2">
                 <button
@@ -178,7 +192,7 @@ export default function AuditLog() {
                   <ChevronLeft size={14} />
                 </button>
                 <button
-                  disabled={page >= meta.totalPages}
+                  disabled={page >= totalPages}
                   onClick={() => setPage(page + 1)}
                   className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40"
                 >
