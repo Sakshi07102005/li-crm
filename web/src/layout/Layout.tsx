@@ -4,6 +4,7 @@ import {
   Users, 
   Building2, 
   CheckSquare, 
+  BarChart3,
   LogOut, 
   Briefcase,
   Sparkles
@@ -15,6 +16,7 @@ const links = [
   { to: '/leads', label: 'Leads', icon: Users },
   { to: '/companies', label: 'Companies', icon: Building2 },
   { to: '/tasks', label: 'Tasks', icon: CheckSquare },
+  { to: '/reports', label: 'Reports & BI', icon: BarChart3 },
 ];
 
 export default function Layout() {
@@ -28,6 +30,7 @@ export default function Layout() {
     if (path.startsWith('/leads')) return 'Lead Management';
     if (path.startsWith('/companies')) return 'Companies Directory';
     if (path.startsWith('/tasks')) return 'Tasks & Activities';
+    if (path.startsWith('/reports')) return 'Reports & Analytics';
     return 'CRM Platform';
   };
 

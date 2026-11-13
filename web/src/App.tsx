@@ -6,6 +6,7 @@ import LeadsList from '@/features/leads/LeadsList';
 import LeadDetail from '@/features/leads/LeadDetail';
 import Companies from '@/features/companies/Companies';
 import Tasks from '@/features/tasks/Tasks';
+import Reports from '@/features/reports/Reports';
 import NotFound from '@/ui/NotFound';
 import Forbidden from '@/ui/Forbidden';
 import Login from '@/features/auth/Login';
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/leads/:id" element={<LeadDetail />} />
         <Route path="/companies" element={<Companies />} />
         <Route path="/tasks" element={<Tasks />} />
+        <Route path="/reports" element={<Reports />} />
         <Route path="/403" element={<Forbidden />} />
         <Route path="*" element={<NotFound />} />
       </Route>
