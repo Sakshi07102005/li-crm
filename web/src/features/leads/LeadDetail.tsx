@@ -4,7 +4,23 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/shared/api/client';
 import { Card, CardHeader, CardTitle, CardContent } from '@/ui/Card';
-import { Edit2, UserCheck, ArrowRightCircle, X } from 'lucide-react';
+import { 
+  Edit2, 
+  UserCheck, 
+  ArrowRightCircle, 
+  X, 
+  ArrowLeft,
+  Mail,
+  Phone,
+  Building2,
+  Calendar,
+  Layers,
+  Compass,
+  User,
+  AlertTriangle,
+  FileText,
+  CheckCircle2
+} from 'lucide-react';
 
 export default function LeadDetail() {
   const { id } = useParams<{ id: string }>();
@@ -116,24 +132,56 @@ export default function LeadDetail() {
     setIsEditOpen(true);
   };
 
-  if (isLoading) return <div className="text-gray-500 p-8">Loading lead details…</div>;
-  if (isError) return <div className="text-red-600 p-8">Failed to load lead.</div>;
-  if (!lead) return <div className="text-gray-500 p-8">Lead not found.</div>;
+  if (isLoading) {
+    return (
+      <div className="space-y-6 animate-pulse max-w-5xl">
+        <div className="h-6 bg-slate-200 rounded w-32" />
+        <div className="h-40 bg-slate-200 rounded-2xl" />
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="h-64 bg-slate-200 rounded-2xl" />
+          <div className="h-64 bg-slate-200 rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="p-6 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 max-w-2xl">
+        <h3 className="font-semibold text-base">Failed to load lead details</h3>
+        <p className="text-sm mt-1">Please ensure the lead exists and your backend is accessible.</p>
+        <Link to="/leads" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-rose-800 underline">
+          ← Return to leads list
+        </Link>
+      </div>
+    );
+  }
+
+  if (!lead) {
+    return (
+      <div className="p-8 text-center text-slate-500 max-w-md mx-auto">
+        <p className="font-medium text-sm">Lead profile not found.</p>
+        <Link to="/leads" className="mt-2 text-xs text-blue-600 hover:underline inline-block">
+          Return to Leads
+        </Link>
+      </div>
+    );
+  }
 
   const statusName =
     typeof lead.status === 'object' && lead.status !== null
       ? lead.status.name
-      : lead.statusName || lead.status || 'New';
+      : lead.statusName || lead.status || 'New Lead';
 
   const productName =
     typeof lead.product === 'object' && lead.product !== null
       ? lead.product.name
-      : lead.product || 'N/A';
+      : lead.product || 'Not Specified';
 
   const sourceName =
     typeof lead.source === 'object' && lead.source !== null
       ? lead.source.name
-      : lead.source || 'N/A';
+      : lead.source || 'Direct';
 
   const assignedName =
     typeof lead.assignedTo === 'object' && lead.assignedTo !== null
@@ -152,114 +200,231 @@ export default function LeadDetail() {
   ];
 
   const assignableUsers = lookupsData?.assignableUsers ?? [];
+  const displayName = lead.leadName || lead.email || lead.mobile || 'Lead Details';
+
+  const getStatusColor = (status: string) => {
+    const s = status.toLowerCase();
+    if (s.includes('new')) return 'bg-blue-50 text-blue-700 border-blue-200/80';
+    if (s.includes('contact')) return 'bg-sky-50 text-sky-700 border-sky-200/80';
+    if (s.includes('interest')) return 'bg-indigo-50 text-indigo-700 border-indigo-200/80';
+    if (s.includes('meeting')) return 'bg-purple-50 text-purple-700 border-purple-200/80';
+    if (s.includes('proposal')) return 'bg-amber-50 text-amber-700 border-amber-200/80';
+    if (s.includes('negot')) return 'bg-orange-50 text-orange-700 border-orange-200/80';
+    if (s.includes('convert')) return 'bg-emerald-50 text-emerald-700 border-emerald-200/80';
+    if (s.includes('lost')) return 'bg-rose-50 text-rose-700 border-rose-200/80';
+    return 'bg-slate-50 text-slate-700 border-slate-200/80';
+  };
 
   return (
-    <div className="space-y-4 max-w-4xl">
-      <div className="flex items-center justify-between">
-        <Link to="/leads" className="text-sm text-blue-600 hover:underline">
-          ← Back to Leads
+    <div className="space-y-6 max-w-5xl">
+      {/* Back button & Action Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/80">
+        <Link
+          to="/leads"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-600 transition"
+        >
+          <ArrowLeft size={14} />
+          <span>Back to All Leads</span>
         </Link>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2.5">
           <button
             onClick={() => {
               setSelectedStatusId(typeof lead.status === 'object' ? lead.status.id : 1);
               setIsStatusOpen(true);
             }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl bg-amber-50 text-amber-800 border border-amber-200/80 hover:bg-amber-100 transition shadow-sm"
           >
             <ArrowRightCircle size={14} />
-            Change Status
+            <span>Change Status</span>
           </button>
+
           <button
             onClick={() => setIsAssignOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl bg-purple-50 text-purple-800 border border-purple-200/80 hover:bg-purple-100 transition shadow-sm"
           >
             <UserCheck size={14} />
-            Reassign
+            <span>Reassign Lead</span>
           </button>
+
           <button
             onClick={openEditModal}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded bg-blue-600 text-white hover:bg-blue-700 transition"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20 transition"
           >
             <Edit2 size={14} />
-            Edit Lead
+            <span>Edit Profile</span>
           </button>
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="flex justify-between items-start">
+      {/* Hero Overview Card */}
+      <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-2xl shadow-lg shadow-blue-500/20 flex-shrink-0">
+            {displayName.charAt(0).toUpperCase()}
+          </div>
           <div>
-            <CardTitle className="text-xl font-bold">
-              {lead.leadName || lead.email || lead.mobile || 'Lead Details'}
-            </CardTitle>
-            {lead.leadCode && (
-              <span className="text-xs text-gray-400 font-mono">{lead.leadCode}</span>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
+                {displayName}
+              </h1>
+              {lead.leadCode && (
+                <span className="text-xs font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200">
+                  {lead.leadCode}
+                </span>
+              )}
+            </div>
+            {lead.companyName && (
+              <p className="text-sm text-slate-600 font-medium mt-1 flex items-center gap-1.5">
+                <Building2 size={15} className="text-slate-400" />
+                <span>{lead.companyName}</span>
+              </p>
             )}
           </div>
-          <span className="text-xs font-semibold px-2.5 py-1 rounded bg-blue-100 text-blue-800">
-            {statusName}
-          </span>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm divide-y divide-gray-100">
-          <div className="grid grid-cols-2 gap-4 pt-2">
-            <div>
-              <span className="text-gray-500 block text-xs">Email</span>
-              <span className="font-medium">{lead.email || '—'}</span>
-            </div>
-            <div>
-              <span className="text-gray-500 block text-xs">Mobile</span>
-              <span className="font-medium">{lead.mobile || '—'}</span>
-            </div>
-            <div>
-              <span className="text-gray-500 block text-xs">Company</span>
-              <span className="font-medium">{lead.companyName || '—'}</span>
-            </div>
-            <div>
-              <span className="text-gray-500 block text-xs">Priority</span>
-              <span className="font-medium capitalize">{lead.priority || 'Normal'}</span>
-            </div>
-            <div>
-              <span className="text-gray-500 block text-xs">Product</span>
-              <span className="font-medium">{productName}</span>
-            </div>
-            <div>
-              <span className="text-gray-500 block text-xs">Source</span>
-              <span className="font-medium">{sourceName}</span>
-            </div>
-            <div>
-              <span className="text-gray-500 block text-xs">Assigned To</span>
-              <span className="font-medium">{assignedName}</span>
-            </div>
-            <div>
-              <span className="text-gray-500 block text-xs">Created At</span>
-              <span className="font-medium">
-                {lead.createdAt ? new Date(lead.createdAt).toLocaleString() : '—'}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <span className="text-[11px] text-slate-400 font-medium uppercase tracking-wider block">Stage</span>
+            <span className={`inline-block mt-0.5 text-xs font-bold px-3 py-1 rounded-full border ${getStatusColor(statusName)}`}>
+              {statusName}
+            </span>
+          </div>
+          <div className="text-right border-l border-slate-100 pl-3">
+            <span className="text-[11px] text-slate-400 font-medium uppercase tracking-wider block">Priority</span>
+            <span className="inline-block mt-0.5 text-xs font-bold text-slate-800 capitalize bg-slate-100 px-2.5 py-1 rounded-full">
+              {lead.priority || 'Medium'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Details Grid */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Contact Information */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-bold text-slate-900">Contact Information</CardTitle>
+            <User size={16} className="text-slate-400" />
+          </CardHeader>
+          <CardContent className="space-y-4 pt-4">
+            <div className="flex items-center justify-between py-2 border-b border-slate-100 text-sm">
+              <span className="text-xs font-medium text-slate-400 flex items-center gap-2">
+                <Mail size={14} /> Email Address
+              </span>
+              <span className="font-semibold text-slate-800 select-all">
+                {lead.email || '—'}
               </span>
             </div>
+
+            <div className="flex items-center justify-between py-2 border-b border-slate-100 text-sm">
+              <span className="text-xs font-medium text-slate-400 flex items-center gap-2">
+                <Phone size={14} /> Mobile Phone
+              </span>
+              <span className="font-semibold text-slate-800 select-all">
+                {lead.mobile || '—'}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between py-2 border-b border-slate-100 text-sm">
+              <span className="text-xs font-medium text-slate-400 flex items-center gap-2">
+                <Building2 size={14} /> Company
+              </span>
+              <span className="font-semibold text-slate-800">
+                {lead.companyName || '—'}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between py-2 text-sm">
+              <span className="text-xs font-medium text-slate-400 flex items-center gap-2">
+                <Calendar size={14} /> Creation Date
+              </span>
+              <span className="font-medium text-slate-700">
+                {lead.createdAt ? new Date(lead.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—'}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Pipeline & Sales Ownership */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-bold text-slate-900">Pipeline & Ownership</CardTitle>
+            <Layers size={16} className="text-slate-400" />
+          </CardHeader>
+          <CardContent className="space-y-4 pt-4">
+            <div className="flex items-center justify-between py-2 border-b border-slate-100 text-sm">
+              <span className="text-xs font-medium text-slate-400 flex items-center gap-2">
+                <User size={14} /> Assigned Representative
+              </span>
+              <span className="font-semibold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-lg text-xs">
+                {assignedName}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between py-2 border-b border-slate-100 text-sm">
+              <span className="text-xs font-medium text-slate-400 flex items-center gap-2">
+                <Layers size={14} /> Product Offering
+              </span>
+              <span className="font-semibold text-slate-800">
+                {productName}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between py-2 border-b border-slate-100 text-sm">
+              <span className="text-xs font-medium text-slate-400 flex items-center gap-2">
+                <Compass size={14} /> Acquisition Source
+              </span>
+              <span className="font-semibold text-slate-800">
+                {sourceName}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between py-2 text-sm">
+              <span className="text-xs font-medium text-slate-400 flex items-center gap-2">
+                <CheckCircle2 size={14} /> Current Status
+              </span>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${getStatusColor(statusName)}`}>
+                {statusName}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Lost Reason Banner if Status is Lost */}
+      {lead.lostReason && (
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-3">
+          <AlertTriangle size={18} className="text-rose-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <h4 className="font-bold text-xs uppercase tracking-wider text-rose-900">Lead Disqualified / Lost Reason</h4>
+            <p className="text-sm text-rose-700 mt-1 leading-relaxed">{lead.lostReason}</p>
           </div>
-          {lead.lostReason && (
-            <div className="pt-3">
-              <span className="text-red-500 block text-xs mb-1 font-semibold">Lost Reason</span>
-              <p className="text-red-700 bg-red-50 p-2.5 rounded text-xs">{lead.lostReason}</p>
-            </div>
-          )}
-          {lead.remarks && (
-            <div className="pt-3">
-              <span className="text-gray-500 block text-xs mb-1">Remarks</span>
-              <p className="text-gray-700 bg-gray-50 p-3 rounded">{lead.remarks}</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        </div>
+      )}
+
+      {/* Notes & Remarks Section */}
+      {lead.remarks && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-bold text-slate-900">Notes & Internal Remarks</CardTitle>
+            <FileText size={16} className="text-slate-400" />
+          </CardHeader>
+          <CardContent className="pt-3">
+            <p className="text-sm text-slate-700 bg-slate-50 p-4 rounded-xl leading-relaxed border border-slate-100">
+              {lead.remarks}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Edit Lead Modal */}
       {isEditOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-5">
-            <div className="flex items-center justify-between pb-3 border-b">
-              <h2 className="text-base font-bold text-gray-800">Edit Lead Details</h2>
-              <button onClick={() => setIsEditOpen(false)} className="text-gray-400 hover:text-gray-600">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
+              <h2 className="text-base font-bold text-slate-900">Edit Lead Details</h2>
+              <button onClick={() => setIsEditOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition">
                 <X size={18} />
               </button>
             </div>
@@ -268,58 +433,60 @@ export default function LeadDetail() {
                 e.preventDefault();
                 updateMutation.mutate(editForm);
               }}
-              className="space-y-3 pt-3 text-sm"
+              className="p-6 space-y-4 text-sm"
             >
               {actionError && (
-                <div className="p-2 text-xs bg-red-50 text-red-700 border border-red-200 rounded">
+                <div className="p-3 text-xs bg-rose-50 text-rose-700 border border-rose-200 rounded-xl">
                   {actionError}
                 </div>
               )}
               <div>
-                <label className="block text-gray-700 font-medium text-xs mb-1">Lead Name</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                  Lead Name <span className="text-rose-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
                   value={editForm.leadName}
                   onChange={(e) => setEditForm({ ...editForm, leadName: e.target.value })}
-                  className="w-full px-3 py-1.5 border rounded outline-none"
+                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition text-sm"
                 />
               </div>
               <div>
-                <label className="block text-gray-700 font-medium text-xs mb-1">Company Name</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Company Name</label>
                 <input
                   type="text"
                   value={editForm.companyName}
                   onChange={(e) => setEditForm({ ...editForm, companyName: e.target.value })}
-                  className="w-full px-3 py-1.5 border rounded outline-none"
+                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition text-sm"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-gray-700 font-medium text-xs mb-1">Email</label>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Email Address</label>
                   <input
                     type="email"
                     value={editForm.email}
                     onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                    className="w-full px-3 py-1.5 border rounded outline-none"
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition text-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-700 font-medium text-xs mb-1">Mobile</label>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Mobile Phone</label>
                   <input
                     type="tel"
                     value={editForm.mobile}
                     onChange={(e) => setEditForm({ ...editForm, mobile: e.target.value })}
-                    className="w-full px-3 py-1.5 border rounded outline-none"
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition text-sm"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-gray-700 font-medium text-xs mb-1">Priority</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Priority</label>
                 <select
                   value={editForm.priority}
                   onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })}
-                  className="w-full px-3 py-1.5 border rounded outline-none bg-white"
+                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition bg-white text-sm"
                 >
                   <option value="high">High Priority</option>
                   <option value="medium">Medium Priority</option>
@@ -327,28 +494,28 @@ export default function LeadDetail() {
                 </select>
               </div>
               <div>
-                <label className="block text-gray-700 font-medium text-xs mb-1">Remarks</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Remarks</label>
                 <textarea
                   rows={2}
                   value={editForm.remarks}
                   onChange={(e) => setEditForm({ ...editForm, remarks: e.target.value })}
-                  className="w-full px-3 py-1.5 border rounded outline-none"
+                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition text-sm"
                 />
               </div>
-              <div className="flex justify-end gap-2 pt-2 border-t">
+              <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsEditOpen(false)}
-                  className="px-3 py-1.5 border rounded text-xs"
+                  className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-semibold transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={updateMutation.isPending}
-                  className="px-4 py-1.5 bg-blue-600 text-white rounded text-xs font-semibold"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-md shadow-blue-500/20 transition disabled:opacity-50"
                 >
-                  {updateMutation.isPending ? 'Saving…' : 'Save Changes'}
+                  {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>
@@ -358,21 +525,26 @@ export default function LeadDetail() {
 
       {/* Change Status Modal */}
       {isStatusOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-4">
-            <h2 className="text-base font-bold text-gray-800 mb-3">Update Pipeline Status</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
+              <h2 className="text-base font-bold text-slate-900">Update Pipeline Status</h2>
+              <button onClick={() => setIsStatusOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition">
+                <X size={18} />
+              </button>
+            </div>
             {actionError && (
-              <div className="p-2 text-xs bg-red-50 text-red-700 border border-red-200 rounded mb-2">
+              <div className="p-3 mx-6 mt-4 text-xs bg-rose-50 text-rose-700 border border-rose-200 rounded-xl">
                 {actionError}
               </div>
             )}
-            <div className="space-y-3 text-sm">
+            <div className="p-6 space-y-4 text-sm">
               <div>
-                <label className="block text-gray-700 text-xs font-medium mb-1">New Status</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">New Stage</label>
                 <select
                   value={selectedStatusId}
                   onChange={(e) => setSelectedStatusId(Number(e.target.value))}
-                  className="w-full px-3 py-2 border rounded bg-white text-sm"
+                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition bg-white text-sm"
                 >
                   {statuses.map((s: any) => (
                     <option key={s.id} value={s.id}>
@@ -384,25 +556,25 @@ export default function LeadDetail() {
 
               {selectedStatusId === 8 && (
                 <div>
-                  <label className="block text-gray-700 text-xs font-medium mb-1">
-                    Lost Reason <span className="text-red-500">*</span>
+                  <label className="block text-xs font-semibold text-rose-600 uppercase tracking-wider mb-1">
+                    Lost Reason <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Budget constraints, opted for competitor..."
+                    placeholder="e.g. Budget constraints, chose competitor..."
                     value={lostReason}
                     onChange={(e) => setLostReason(e.target.value)}
-                    className="w-full px-3 py-1.5 border rounded text-sm"
+                    className="w-full px-3.5 py-2 border border-rose-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition text-sm"
                   />
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-2 border-t">
+              <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsStatusOpen(false)}
-                  className="px-3 py-1.5 border rounded text-xs"
+                  className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-semibold transition"
                 >
                   Cancel
                 </button>
@@ -410,9 +582,9 @@ export default function LeadDetail() {
                   type="button"
                   disabled={statusMutation.isPending}
                   onClick={() => statusMutation.mutate({ statusId: selectedStatusId, lostReason: selectedStatusId === 8 ? lostReason : undefined })}
-                  className="px-4 py-1.5 bg-amber-600 text-white rounded text-xs font-semibold"
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold shadow-md shadow-amber-500/20 transition disabled:opacity-50"
                 >
-                  {statusMutation.isPending ? 'Updating…' : 'Update Status'}
+                  {statusMutation.isPending ? 'Updating...' : 'Update Status'}
                 </button>
               </div>
             </div>
@@ -422,21 +594,26 @@ export default function LeadDetail() {
 
       {/* Reassign Modal */}
       {isAssignOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-4">
-            <h2 className="text-base font-bold text-gray-800 mb-3">Reassign Lead</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
+              <h2 className="text-base font-bold text-slate-900">Reassign Lead</h2>
+              <button onClick={() => setIsAssignOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition">
+                <X size={18} />
+              </button>
+            </div>
             {actionError && (
-              <div className="p-2 text-xs bg-red-50 text-red-700 border border-red-200 rounded mb-2">
+              <div className="p-3 mx-6 mt-4 text-xs bg-rose-50 text-rose-700 border border-rose-200 rounded-xl">
                 {actionError}
               </div>
             )}
-            <div className="space-y-3 text-sm">
+            <div className="p-6 space-y-4 text-sm">
               <div>
-                <label className="block text-gray-700 text-xs font-medium mb-1">Assign To</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Assign To Representative</label>
                 <select
                   value={selectedAssignee}
                   onChange={(e) => setSelectedAssignee(e.target.value)}
-                  className="w-full px-3 py-2 border rounded bg-white text-sm"
+                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition bg-white text-sm"
                 >
                   <option value="">Select Representative...</option>
                   {assignableUsers.map((u: any) => (
@@ -448,21 +625,21 @@ export default function LeadDetail() {
               </div>
 
               <div>
-                <label className="block text-gray-700 text-xs font-medium mb-1">Reason for Reassignment</label>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Reason for Reassignment</label>
                 <input
                   type="text"
-                  placeholder="e.g. Territory change, workload rebalance..."
+                  placeholder="e.g. Territory change, workload balance..."
                   value={assignReason}
                   onChange={(e) => setAssignReason(e.target.value)}
-                  className="w-full px-3 py-1.5 border rounded text-sm"
+                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition text-sm"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t">
+              <div className="flex justify-end gap-2.5 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsAssignOpen(false)}
-                  className="px-3 py-1.5 border rounded text-xs"
+                  className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-semibold transition"
                 >
                   Cancel
                 </button>
@@ -470,9 +647,9 @@ export default function LeadDetail() {
                   type="button"
                   disabled={assignMutation.isPending || !selectedAssignee}
                   onClick={() => assignMutation.mutate({ assignedTo: selectedAssignee, reason: assignReason })}
-                  className="px-4 py-1.5 bg-purple-600 text-white rounded text-xs font-semibold disabled:opacity-50"
+                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-semibold shadow-md shadow-purple-500/20 transition disabled:opacity-50"
                 >
-                  {assignMutation.isPending ? 'Assigning…' : 'Reassign Lead'}
+                  {assignMutation.isPending ? 'Assigning...' : 'Reassign Lead'}
                 </button>
               </div>
             </div>
