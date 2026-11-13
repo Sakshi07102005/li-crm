@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import client, { getAccessToken, getRefreshToken, setTokens, clearTokens } from '@/shared/api/client';
+import client, { getRefreshToken, setTokens, clearTokens } from '@/shared/api/client';
 import { useNavigate } from 'react-router-dom';
 
 interface AuthContextProps {
@@ -24,8 +24,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!refresh) return;
       try {
         const resp = await client.post('/auth/refresh', { refreshToken: refresh });
-        const { accessToken, refreshToken } = resp.data.data;
-        setTokens(accessToken, refreshToken);
+        const tokens = resp.data.data?.tokens || resp.data.data;
+        const accessToken = tokens?.accessToken;
+        const newRefreshToken = tokens?.refreshToken || refresh;
+        if (accessToken) {
+          setTokens(accessToken, newRefreshToken);
+        }
         const meResp = await client.get('/auth/me');
         setUser(meResp.data.data);
       } catch (e) {
@@ -38,8 +42,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, password: string) => {
     const resp = await client.post('/auth/login', { email, password });
-    const { accessToken, refreshToken, user: loggedUser } = resp.data.data;
-    setTokens(accessToken, refreshToken);
+    const data = resp.data.data;
+    const tokens = data?.tokens || data;
+    const loggedUser = data?.user;
+    if (tokens?.accessToken && tokens?.refreshToken) {
+      setTokens(tokens.accessToken, tokens.refreshToken);
+    }
     setUser(loggedUser);
     queryClient.invalidateQueries(); // clear any stale data
     navigate('/dashboard');

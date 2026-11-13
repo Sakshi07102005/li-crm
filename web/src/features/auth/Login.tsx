@@ -1,10 +1,8 @@
-import React from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/shared/auth/AuthContext';
-import client from '@/shared/api/client';
 
 // Zod schema for login
 const loginSchema = z.object({

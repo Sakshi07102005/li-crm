@@ -1,5 +1,5 @@
-import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
-import { lock } from 'navigator';
+import axios from 'axios';
+import type { AxiosError, AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 
 // Base API URL from env (VITE_API_URL)
 const apiBase = import.meta.env.VITE_API_URL as string;
@@ -15,18 +15,18 @@ export interface NormalizedError {
 // Single-flight refresh lock name
 const REFRESH_LOCK = 'licrm-refresh';
 
-let refreshPromise: Promise<void> | null = null;
-
 // Helper to get stored tokens
 function getAccessToken(): string | null {
-  return localStorage.getItem('accessToken');
+  const token = localStorage.getItem('accessToken');
+  return token && token !== 'undefined' && token !== 'null' ? token : null;
 }
 function getRefreshToken(): string | null {
-  return localStorage.getItem('refreshToken');
+  const token = localStorage.getItem('refreshToken');
+  return token && token !== 'undefined' && token !== 'null' ? token : null;
 }
 function setTokens(access: string, refresh: string) {
-  localStorage.setItem('accessToken', access);
-  localStorage.setItem('refreshToken', refresh);
+  if (access && access !== 'undefined') localStorage.setItem('accessToken', access);
+  if (refresh && refresh !== 'undefined') localStorage.setItem('refreshToken', refresh);
 }
 function clearTokens() {
   localStorage.removeItem('accessToken');
@@ -40,13 +40,11 @@ const client: AxiosInstance = axios.create({
 });
 
 // Request interceptor – attach access token
-client.interceptors.request.use((config: AxiosRequestConfig) => {
+client.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = getAccessToken();
   if (token) {
-    config.headers = config.headers ?? {};
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore – header type.
-    config.headers['Authorization'] = `Bearer ${token}`;
+    config.headers = config.headers ?? {} as typeof config.headers;
+    config.headers.set('Authorization', `Bearer ${token}`);
   }
   return config;
 });
@@ -58,7 +56,7 @@ client.interceptors.response.use(
     return response;
   },
   async (error: AxiosError) => {
-    const originalConfig = error.config as AxiosRequestConfig & { _retry?: boolean };
+    const originalConfig = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
     if (!originalConfig) return Promise.reject(error);
 
     // Normalise error shape
@@ -74,13 +72,10 @@ client.interceptors.response.use(
       originalConfig._retry = true;
       try {
         await navigator.locks.request(REFRESH_LOCK, async () => {
-          // Inside lock – check if token already refreshed by another tab
           const freshAccess = getAccessToken();
-          if (freshAccess && freshAccess !== originalConfig.headers?.['Authorization']?.split(' ')[1]) {
-            // Another tab refreshed already – just retry
+          if (freshAccess && freshAccess !== (originalConfig.headers as any)['Authorization']?.split(' ')[1]) {
             return;
           }
-          // Perform refresh using stored refresh token
           const refreshToken = getRefreshToken();
           if (!refreshToken) throw new Error('No refresh token');
           const resp = await axios.post(
@@ -91,10 +86,8 @@ client.interceptors.response.use(
           const { accessToken: newAccess, refreshToken: newRefresh } = resp.data.data;
           setTokens(newAccess, newRefresh);
         });
-        // After lock, retry original request with new token
         return client(originalConfig);
       } catch (e) {
-        // Refresh failed – clear session and redirect handled by auth hook
         clearTokens();
         return Promise.reject(norm);
       }
@@ -106,4 +99,4 @@ client.interceptors.response.use(
 );
 
 export default client;
-export { getAccessToken, getRefreshToken, setTokens, clearTokens, NormalizedError };
+export { getAccessToken, getRefreshToken, setTokens, clearTokens };

@@ -1,8 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import client from '@/shared/api/client';
-import { useState, useEffect } from 'react';
 
-// Permissions are simple string codes returned by GET /rbac/permissions
 type PermissionCode = string;
 
 interface PermissionsResponse {
@@ -10,11 +8,13 @@ interface PermissionsResponse {
 }
 
 export const usePermissions = () => {
-  const { data, error, isLoading } = useQuery<PermissionsResponse>(['permissions'], async () => {
-    const res = await client.get('/rbac/permissions');
-    return res.data;
-  }, {
-    staleTime: 5 * 60 * 1000, // 5 minutes
+  const { data, error, isLoading } = useQuery<PermissionsResponse>({
+    queryKey: ['permissions'],
+    queryFn: async () => {
+      const res = await client.get('/rbac/permissions');
+      return res.data as PermissionsResponse;
+    },
+    staleTime: 5 * 60 * 1000,
     retry: false,
   });
 
@@ -25,4 +25,3 @@ export const usePermissions = () => {
 
   return { can, permissions: data?.data ?? [], isLoading, error };
 };
-

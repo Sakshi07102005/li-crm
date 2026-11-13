@@ -14,7 +14,7 @@ const REPORT_VIEW_PERMS = [
 
 // Dashboard
 router.get(
-  '/dashboard',
+  ['/dashboard', '/reports/dashboard'],
   authenticate,
   requirePermission('dashboard.view'),
   reportCtrl.getDashboard,

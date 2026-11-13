@@ -1,15 +1,16 @@
-import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { Home, Users, Building, Calendar, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react';
+import { useAuth } from '@/shared/auth/AuthContext';
 
 const links = [
-  { to: '/dashboard', label: 'Dashboard', icon: <Home size={18} /> },
-  { to: '/leads', label: 'Leads', icon: <Users size={18} /> },
-  { to: '/companies', label: 'Companies', icon: <Building size={18} /> },
-  { to: '/tasks', label: 'Tasks', icon: <Calendar size={18} /> },
+  { to: '/', label: 'Dashboard', icon: <span>🏠</span> },
+  { to: '/leads', label: 'Leads', icon: <span>📋</span> },
+  { to: '/companies', label: 'Companies', icon: <span>🏢</span> },
+  { to: '/tasks', label: 'Tasks', icon: <span>✅</span> },
 ];
 
 export default function Layout() {
+  const { logout } = useAuth();
   return (
     <div className="flex h-full">
       <nav className="w-64 bg-white border-r p-4 flex flex-col">
@@ -31,9 +32,12 @@ export default function Layout() {
             </li>
           ))}
         </ul>
-        <button className="mt-auto flex items-center gap-2 text-red-600 hover:text-red-800">
+        <button
+          className="mt-auto flex items-center gap-2 text-red-600 hover:text-red-800"
+          onClick={logout}
+        >
           <LogOut size={18} />
-          Logout (TODO)
+          Logout
         </button>
       </nav>
       <main className="flex-1 overflow-y-auto p-6 bg-gray-50">
@@ -42,4 +46,3 @@ export default function Layout() {
     </div>
   );
 }
-
