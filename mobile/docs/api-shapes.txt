@@ -1,0 +1,363 @@
+{
+  "POST /auth/login": {
+    "success": "boolean",
+    "message": "string",
+    "data": {
+      "user": {
+        "id": "string",
+        "email": "string",
+        "firstName": "string",
+        "lastName": "string",
+        "phone": "string",
+        "avatarUrl": "null",
+        "role": {
+          "code": "string",
+          "name": "string"
+        },
+        "managerId": "string",
+        "isActive": "boolean",
+        "lastLoginAt": "string",
+        "createdAt": "string"
+      },
+      "tokens": "string(REDACTED)"
+    }
+  },
+  "GET /auth/me": {
+    "success": "boolean",
+    "message": "string",
+    "data": {
+      "id": "string",
+      "email": "string",
+      "firstName": "string",
+      "lastName": "string",
+      "phone": "string",
+      "avatarUrl": "null",
+      "role": {
+        "code": "string",
+        "name": "string"
+      },
+      "managerId": "string",
+      "isActive": "boolean",
+      "lastLoginAt": "string",
+      "createdAt": "string",
+      "permissions": [
+        "string"
+      ]
+    }
+  },
+  "GET /rbac/permissions": {
+    "success": "boolean",
+    "message": "string",
+    "data": {
+      "role": {
+        "code": "string",
+        "name": "string"
+      },
+      "permissions": [
+        "string"
+      ],
+      "scope": {
+        "leads": "string"
+      }
+    }
+  },
+  "GET /leads?limit=2": {
+    "success": "boolean",
+    "message": "string",
+    "data": {
+      "leads": [
+        {
+          "id": "string",
+          "leadCode": "string",
+          "leadName": "string",
+          "companyId": "string",
+          "companyName": "string",
+          "contactId": "object",
+          "email": "string",
+          "mobile": "string",
+          "website": "string",
+          "industry": "string",
+          "product": "object",
+          "source": "object",
+          "assignedTo": "object",
+          "priority": "string",
+          "status": "object",
+          "nextFollowUpAt": "object",
+          "remarks": "string",
+          "lostReason": "object",
+          "convertedAt": "object",
+          "createdBy": "object",
+          "createdAt": "string",
+          "updatedAt": "string"
+        }
+      ],
+      "meta": {
+        "page": "number",
+        "limit": "number",
+        "total": "number",
+        "totalPages": "number"
+      }
+    }
+  },
+  "GET /leads/:id": {
+    "success": "boolean",
+    "message": "string",
+    "data": {
+      "lead": {
+        "id": "string",
+        "leadCode": "string",
+        "leadName": "string",
+        "companyId": "string",
+        "companyName": "string",
+        "contactId": "null",
+        "email": "string",
+        "mobile": "string",
+        "website": "string",
+        "industry": "string",
+        "product": {
+          "id": "number",
+          "code": "string",
+          "name": "string"
+        },
+        "source": {
+          "id": "number",
+          "name": "string",
+          "isMarketing": "boolean"
+        },
+        "assignedTo": {
+          "id": "string",
+          "name": "string",
+          "email": "string"
+        },
+        "priority": "string",
+        "status": {
+          "id": "number",
+          "name": "string",
+          "sortOrder": "number",
+          "isFinal": "boolean"
+        },
+        "nextFollowUpAt": "null",
+        "remarks": "string",
+        "lostReason": "null",
+        "convertedAt": "null",
+        "createdBy": {
+          "id": "string",
+          "name": "string"
+        },
+        "createdAt": "string",
+        "updatedAt": "string",
+        "allowedNextStatuses": [
+          "object"
+        ]
+      }
+    }
+  },
+  "GET /leads/lookups": {
+    "success": "boolean",
+    "message": "string",
+    "data": {
+      "products": [
+        {
+          "id": "number",
+          "code": "string",
+          "name": "string"
+        }
+      ],
+      "sources": [
+        {
+          "id": "number",
+          "name": "string",
+          "isMarketing": "boolean"
+        }
+      ],
+      "statuses": [
+        {
+          "id": "number",
+          "name": "string",
+          "sortOrder": "number",
+          "isFinal": "boolean"
+        }
+      ],
+      "priorities": [
+        "string"
+      ],
+      "industries": [
+        "string"
+      ],
+      "assignableUsers": "[]"
+    }
+  },
+  "GET /followups?limit=2": {
+    "success": "boolean",
+    "message": "string",
+    "data": {
+      "followups": [
+        {
+          "id": "string",
+          "type": "string",
+          "notes": "string",
+          "status": "string",
+          "scheduledAt": "string",
+          "outcome": "string",
+          "completedAt": "string",
+          "isOverdue": "boolean",
+          "daysOverdue": "number",
+          "lead": "object",
+          "assignedTo": "object"
+        }
+      ],
+      "meta": {
+        "page": "number",
+        "limit": "number",
+        "total": "number",
+        "totalPages": "number"
+      }
+    }
+  },
+  "GET /tasks?limit=2&mine=true": {
+    "success": "boolean",
+    "message": "string",
+    "data": {
+      "tasks": [
+        {
+          "id": "string",
+          "title": "string",
+          "description": "string",
+          "status": "string",
+          "priority": "string",
+          "dueDate": "string",
+          "completedAt": "object",
+          "isOverdue": "boolean",
+          "lead": "object",
+          "assignedTo": "object",
+          "assignedBy": "object",
+          "createdAt": "string"
+        }
+      ],
+      "meta": {
+        "page": "number",
+        "limit": "number",
+        "total": "number",
+        "totalPages": "number"
+      }
+    }
+  },
+  "GET /leads/:id/activities?limit=2": {
+    "success": "boolean",
+    "message": "string",
+    "data": {
+      "activities": [
+        {
+          "id": "string",
+          "type": "string",
+          "subject": "string",
+          "notes": "object",
+          "outcome": "object",
+          "occurredAt": "string",
+          "user": "object",
+          "oldStatus": "object",
+          "newStatus": "object"
+        }
+      ],
+      "meta": {
+        "page": "number",
+        "limit": "number",
+        "total": "number",
+        "totalPages": "number"
+      }
+    }
+  },
+  "GET /reports/dashboard": {
+    "success": "boolean",
+    "message": "string",
+    "data": {
+      "summary": {
+        "totalLeads": "number",
+        "newLeads": "number",
+        "convertedLeads": "number",
+        "lostLeads": "number"
+      },
+      "leadsByStatus": [
+        {
+          "statusId": "number",
+          "statusName": "string",
+          "count": "number"
+        }
+      ],
+      "leadsByProduct": [
+        {
+          "productId": "number",
+          "productCode": "string",
+          "productName": "string",
+          "count": "number"
+        }
+      ],
+      "leadsBySource": [
+        {
+          "sourceId": "number",
+          "sourceName": "string",
+          "isMarketing": "boolean",
+          "count": "number"
+        }
+      ],
+      "pendingFollowUps": {
+        "today": "number",
+        "overdue": "number",
+        "total": "number"
+      },
+      "pendingTasks": {
+        "overdue": "number",
+        "total": "number"
+      }
+    }
+  },
+  "POST /auth/refresh": {
+    "success": "boolean",
+    "message": "string",
+    "data": {
+      "accessToken": "string(REDACTED)",
+      "refreshToken": "string(REDACTED)",
+      "expiresIn": "string"
+    }
+  },
+  "Validation Error: POST /leads with {}": {
+    "success": false,
+    "message": "Invalid input",
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "details": {
+        "formErrors": [],
+        "fieldErrors": {
+          "leadName": [
+            "Invalid input: expected string, received undefined"
+          ],
+          "productId": [
+            "Invalid input: expected number, received NaN"
+          ],
+          "sourceId": [
+            "Invalid input: expected number, received NaN"
+          ]
+        }
+      }
+    }
+  },
+  "Duplicate Error: POST /leads duplicate": {
+    "success": false,
+    "message": "Duplicate lead detected",
+    "error": {
+      "code": "DUPLICATE_LEAD",
+      "details": {
+        "duplicates": [
+          {
+            "id": "bbc77886-bcbc-4349-8ad1-ce4a99aa55e2",
+            "leadCode": "LI-LEAD-000449",
+            "leadName": "Dupe Test",
+            "status": "New Lead",
+            "assignedTo": "Sanjay Sales"
+          }
+        ],
+        "outOfScopeCount": 0
+      }
+    }
+  }
+}
