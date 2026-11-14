@@ -53,6 +53,21 @@ router.get(
   leadController.getLeadAssignments,
 );
 
+// AI Predictive Lead Scoring
+router.get(
+  '/:id/ai-score',
+  authenticate,
+  requirePermission(...VIEW_PERMISSIONS),
+  leadController.getLeadAiScore,
+);
+
+router.post(
+  '/:id/ai-score',
+  authenticate,
+  requirePermission(...VIEW_PERMISSIONS),
+  leadController.computeLeadAiScore,
+);
+
 // Activities on a lead
 router.post(
   '/:id/activities',

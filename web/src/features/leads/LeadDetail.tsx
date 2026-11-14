@@ -23,7 +23,13 @@ import {
   CalendarPlus,
   History,
   Activity,
-  Plus
+  Plus,
+  Sparkles,
+  Flame,
+  TrendingUp,
+  Lightbulb,
+  MessageSquare,
+  RefreshCw
 } from 'lucide-react';
 
 interface FollowUp {
@@ -58,6 +64,22 @@ interface LeadAssignment {
   assignedByName: string;
   reason: string | null;
   assignedAt: string;
+}
+
+interface AiScoreData {
+  leadId: string;
+  leadCode: string;
+  leadName: string;
+  score: number;
+  tier: 'HOT' | 'WARM' | 'COLD';
+  conversionProbability: number;
+  summary: string;
+  strengths: string[];
+  risks: string[];
+  recommendedActions: string[];
+  talkingPoints: string[];
+  modelUsed: string;
+  evaluatedAt: string;
 }
 
 export default function LeadDetail() {
@@ -156,6 +178,26 @@ export default function LeadDetail() {
       return res.data.data ?? res.data;
     },
     enabled: !!id,
+  });
+
+  // 6. Fetch AI Lead Score & Copilot Analysis
+  const { data: aiScoreData, isLoading: isAiLoading } = useQuery<AiScoreData>({
+    queryKey: ['lead-ai-score', id],
+    queryFn: async () => {
+      const res = await api.get(`/leads/${id}/ai-score`);
+      return res.data.data ?? res.data;
+    },
+    enabled: !!id,
+  });
+
+  const aiRescoreMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post(`/leads/${id}/ai-score`);
+      return res.data.data ?? res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lead-ai-score', id] });
+    },
   });
 
   const lead = data?.lead || data;
@@ -516,6 +558,191 @@ export default function LeadDetail() {
       {/* TAB 1: OVERVIEW */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
+          {/* AI Predictive Lead Scoring & Copilot Card */}
+          <Card className="border-indigo-100 bg-gradient-to-br from-white via-indigo-50/20 to-purple-50/30 overflow-hidden shadow-sm">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-100/60 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20">
+                  <Sparkles size={18} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-base font-bold text-slate-900 tracking-tight">
+                      AI Predictive Lead Score & Insights
+                    </CardTitle>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200/80">
+                      BANT + NLP Copilot
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Multi-factor propensity evaluation based on company scale, acquisition channel, and deal velocity
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => aiRescoreMutation.mutate()}
+                disabled={aiRescoreMutation.isPending || isAiLoading}
+                className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 shadow-sm transition disabled:opacity-50 self-start sm:self-auto"
+              >
+                <RefreshCw size={13} className={aiRescoreMutation.isPending || isAiLoading ? 'animate-spin' : ''} />
+                <span>{aiRescoreMutation.isPending ? 'Analyzing...' : 'Re-score with AI'}</span>
+              </button>
+            </CardHeader>
+
+            <CardContent className="pt-4 space-y-5">
+              {isAiLoading ? (
+                <div className="p-8 text-center text-slate-400 text-xs animate-pulse flex items-center justify-center gap-2">
+                  <RefreshCw size={16} className="animate-spin text-indigo-500" />
+                  <span>Evaluating lead signals, authority tier & conversion likelihood...</span>
+                </div>
+              ) : aiScoreData ? (
+                <>
+                  {/* Score KPI Row */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl bg-white/80 border border-indigo-100 shadow-sm">
+                    {/* Score Dial */}
+                    <div className="flex items-center gap-4">
+                      <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-700 text-white shadow-lg shadow-indigo-500/20">
+                        <span className="text-2xl font-black tracking-tight">{aiScoreData.score}</span>
+                        <span className="absolute -bottom-1 text-[9px] font-medium opacity-80 uppercase tracking-widest">/ 100</span>
+                      </div>
+                      <div>
+                        <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                          Propensity Rating
+                        </div>
+                        <div className="mt-1">
+                          {aiScoreData.tier === 'HOT' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                              <Flame size={13} className="text-rose-500 fill-rose-500" />
+                              HOT LEAD (High Intent)
+                            </span>
+                          ) : aiScoreData.tier === 'WARM' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              <TrendingUp size={13} className="text-amber-600" />
+                              WARM (Nurture Stage)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                              COLD (Low Engagement)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Win Probability Bar */}
+                    <div className="flex flex-col justify-center">
+                      <div className="flex items-center justify-between text-xs font-semibold mb-1.5">
+                        <span className="text-slate-600">Estimated Win Probability</span>
+                        <span className="text-indigo-700 font-bold">
+                          {Math.round(aiScoreData.conversionProbability * 100)}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-700 bg-gradient-to-r from-indigo-500 to-purple-600"
+                          style={{ width: `${Math.round(aiScoreData.conversionProbability * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-slate-400 mt-1">Based on historical pipeline velocity</span>
+                    </div>
+
+                    {/* Model Info */}
+                    <div className="flex flex-col justify-center md:border-l md:border-slate-100 md:pl-4 text-xs">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                        Evaluation Engine
+                      </span>
+                      <div className="font-semibold text-slate-800 mt-1 flex items-center gap-1.5">
+                        <Sparkles size={13} className="text-indigo-600" />
+                        <span>{aiScoreData.modelUsed}</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 mt-0.5">
+                        Updated {new Date(aiScoreData.evaluatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Executive Summary */}
+                  {aiScoreData.summary && (
+                    <div className="text-xs text-slate-700 bg-white/90 border border-slate-200/80 p-3.5 rounded-xl leading-relaxed">
+                      <span className="font-bold text-slate-900 block mb-1">AI Executive Summary:</span>
+                      {aiScoreData.summary}
+                    </div>
+                  )}
+
+                  {/* Strengths & Risks Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Strengths */}
+                    <div className="p-3.5 rounded-xl bg-emerald-50/50 border border-emerald-200/60 space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900 uppercase tracking-wider">
+                        <CheckCircle2 size={14} className="text-emerald-600" />
+                        <span>Conversion Drivers & Signals</span>
+                      </div>
+                      <ul className="space-y-1.5 text-xs text-slate-700">
+                        {aiScoreData.strengths.map((item, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Risks */}
+                    <div className="p-3.5 rounded-xl bg-rose-50/50 border border-rose-200/60 space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-rose-900 uppercase tracking-wider">
+                        <AlertTriangle size={14} className="text-rose-600" />
+                        <span>Risk Factors & Bottlenecks</span>
+                      </div>
+                      <ul className="space-y-1.5 text-xs text-slate-700">
+                        {aiScoreData.risks.map((item, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 shrink-0" />
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Recommended Next Actions & Talking Points */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                    {/* Next Actions */}
+                    <div className="p-3.5 rounded-xl bg-blue-50/50 border border-blue-200/60 space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900 uppercase tracking-wider">
+                        <Lightbulb size={14} className="text-blue-600" />
+                        <span>Recommended Next Play</span>
+                      </div>
+                      <ul className="space-y-1.5 text-xs text-slate-700">
+                        {aiScoreData.recommendedActions.map((action, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                            <span className="font-medium">{action}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Sales Pitch / Talking Points */}
+                    <div className="p-3.5 rounded-xl bg-purple-50/50 border border-purple-200/60 space-y-2">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900 uppercase tracking-wider">
+                        <MessageSquare size={14} className="text-purple-600" />
+                        <span>AI Sales Rep Talking Points</span>
+                      </div>
+                      <ul className="space-y-1.5 text-xs text-slate-700">
+                        {aiScoreData.talkingPoints.map((point, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-1.5 shrink-0" />
+                            <span>&quot;{point}&quot;</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </CardContent>
+          </Card>
           <div className="grid gap-6 md:grid-cols-2">
             {/* Contact Information */}
             <Card>

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { sendSuccess } from '../utils/response';
 import { AppError } from '../utils/AppError';
 import * as leadService from '../services/lead.service';
+import * as aiScoringService from '../services/aiScoring.service';
 import {
   uuidParamSchema,
   createLeadSchema,
@@ -183,4 +184,48 @@ export async function deleteLead(req: Request, res: Response, next: NextFunction
     next(err);
   }
 }
+
+export async function getLeadAiScore(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const caller = req.user!;
+    const rawId = getParamId(req);
+    const parsedId = uuidParamSchema.safeParse(rawId);
+    if (!parsedId.success) {
+      return next(AppError.validationError('Invalid lead ID format', parsedId.error.flatten()));
+    }
+    const forceRefresh = req.query.refresh === 'true';
+    const score = await aiScoringService.getOrComputeLeadScore(
+      caller,
+      parsedId.data,
+      forceRefresh,
+      getIp(req),
+      getUa(req),
+    );
+    sendSuccess(res, score, 'Lead AI score retrieved');
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function computeLeadAiScore(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const caller = req.user!;
+    const rawId = getParamId(req);
+    const parsedId = uuidParamSchema.safeParse(rawId);
+    if (!parsedId.success) {
+      return next(AppError.validationError('Invalid lead ID format', parsedId.error.flatten()));
+    }
+    const score = await aiScoringService.getOrComputeLeadScore(
+      caller,
+      parsedId.data,
+      true,
+      getIp(req),
+      getUa(req),
+    );
+    sendSuccess(res, score, 'Lead AI score recomputed');
+  } catch (err) {
+    next(err);
+  }
+}
+
 

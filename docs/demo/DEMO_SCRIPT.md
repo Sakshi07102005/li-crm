@@ -142,6 +142,7 @@
 >   2. `taskAssignedEmail`
 >   3. `followUpDueDigestEmail`
 >   Emails feature full HTML escaping to prevent injection attacks and lazy transport initialization with safe error trapping.
+> - **AI Predictive Lead Scoring & Copilot:** Notice the AI Intelligence card at the top of our Lead Overview. Our engine evaluates BANT indicators, organizational scale, deal momentum, and channel affinity to score leads from 0 to 100 with Hot, Warm, or Cold tiers, win probability percentages, and actionable talking points for sales reps. Clicking 'Re-score with AI' triggers instant re-evaluation via LLM or our heuristic engine.
 > - **Follow-up Reminders:** Scheduling a follow-up automatically updates the lead's `next_follow_up_at` field, and our background cron job scans for due reminders, locks candidate rows, and alerts assignees."*
 
 ---

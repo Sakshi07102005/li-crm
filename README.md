@@ -21,6 +21,7 @@ A multi-channel, role-governed web and mobile Customer Relationship Management p
 | 8 | **Android APK** | [`mobile/build/app/outputs/flutter-apk/app-release.apk`](file:///c:/Users/Sakshi%20Sonkul/OneDrive/Desktop/CRM/li-crm/mobile/build/app/outputs/flutter-apk/app-release.apk) | 53.8 MB Release APK compiled |
 | 9 | **README with Setup Instructions** | [`README.md`](file:///c:/Users/Sakshi%20Sonkul/OneDrive/Desktop/CRM/li-crm/README.md) (This document) | Complete setup guide |
 | 10 | **5–10-Minute Recorded Demonstration Script** | [`docs/demo/DEMO_SCRIPT.md`](file:///c:/Users/Sakshi%20Sonkul/OneDrive/Desktop/CRM/li-crm/docs/demo/DEMO_SCRIPT.md) | Word-for-word timed script |
+| 11 | **AI-Powered Predictive Lead Scoring Engine** | [`backend/src/services/aiScoring.service.ts`](file:///c:/Users/Sakshi%20Sonkul/OneDrive/Desktop/CRM/li-crm/backend/src/services/aiScoring.service.ts) & UI Copilot Card | Verified & Production Ready |
 
 ---
 
@@ -75,6 +76,10 @@ li-crm/
    - All exported tabular data sanitizes cells starting with `=`, `+`, `-`, or `@` by prefixing a single quote `'`.
 6. **Multi-Channel Notification & Email Engine:**
    - Modular email dispatch with safety HTML escaping (`esc`) and responsive templates (`leadAssignedEmail`, `taskAssignedEmail`, `followUpDueDigestEmail`).
+7. **AI-Powered Predictive Lead Scoring & Sales Copilot:**
+   - Evaluates multi-factor lead propensity (0–100 score, Hot/Warm/Cold tier, win probability percentage) utilizing BANT qualification, organizational size, deal velocity, and communication channel affinity.
+   - Dual-engine architecture: connects to OpenAI / Gemini LLM if API keys are configured, and features a deterministic zero-downtime heuristic NLP engine fallback.
+   - Generates actionable executive summaries, conversion drivers, deal risk factors, and tailored sales rep talking points.
 
 ---
 
